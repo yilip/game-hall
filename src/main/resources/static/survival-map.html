@@ -1,0 +1,1671 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🌴 荒野求生 - 完整版</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, 'Microsoft YaHei', sans-serif;
+            background: linear-gradient(135deg, #2c5530 0%, #1a3320 100%);
+            overflow: hidden;
+            height: 100vh;
+            width: 100vw;
+        }
+        .game-wrapper {
+            display: grid;
+            grid-template-columns: 1fr 400px;
+            height: 100vh;
+            width: 100vw;
+        }
+        .map-section {
+            position: relative;
+            background: #1a1a2e;
+            overflow: hidden;
+        }
+        /* 左上角悬浮面板 */
+        .overlay-panel {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            z-index: 100;
+        }
+        .overlay-box {
+            background: rgba(0,0,0,0.7);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 15px;
+            border: 2px solid rgba(255,255,255,0.1);
+            box-shadow: 0 5px 20px rgba(0,0,0,0.5);
+        }
+        .log-overlay {
+            width: 350px;
+            height: 33vh; /* 占屏幕三分之一高度 */
+            min-height: 300px;
+            max-height: 400px;
+        }
+        .action-overlay {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            z-index: 100;
+            width: 280px;
+        }
+        .overlay-title {
+            font-size: 14px;
+            font-weight: bold;
+            color: #feca57;
+            margin-bottom: 10px;
+            text-align: center;
+        }
+        .game-map {
+            position: absolute;
+            top: 0; left: 0;
+            width: 2000px; height: 2000px;
+            background: repeating-linear-gradient(0deg, transparent, transparent 49px, rgba(255,255,255,0.05) 50px),
+                        repeating-linear-gradient(90deg, transparent, transparent 49px, rgba(255,255,255,0.05) 50px),
+                        linear-gradient(135deg, #2d5016 0%, #3d6b1f 50%, #2d5016 100%);
+            transition: transform 0.3s ease;
+        }
+        .player-marker {
+            position: absolute;
+            font-size: 40px;
+            transform: translate(-50%, -50%);
+            transition: all 0.3s ease;
+            z-index: 10;
+            filter: drop-shadow(0 0 10px rgba(255,255,255,0.8));
+        }
+        .map-point {
+            position: absolute;
+            font-size: 30px;
+            transform: translate(-50%, -50%);
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .map-point:hover { transform: translate(-50%, -50%) scale(1.3); }
+        .map-point .tooltip {
+            position: absolute;
+            bottom: 40px; left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.8);
+            color: #fff;
+            padding: 8px 15px;
+            border-radius: 8px;
+            font-size: 14px;
+            white-space: nowrap;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s;
+        }
+        .map-point:hover .tooltip { opacity: 1; }
+        .panel-section {
+            background: rgba(0,0,0,0.5);
+            backdrop-filter: blur(10px);
+            overflow-y: auto;
+            padding: 20px;
+            border-left: 2px solid rgba(255,255,255,0.1);
+        }
+        /* 人物展示区域 */
+        .character-panel {
+            background: linear-gradient(135deg, rgba(102,126,234,0.2), rgba(118,75,162,0.2));
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 20px;
+            text-align: center;
+            border: 2px solid rgba(102,126,234,0.3);
+        }
+        .character-model {
+            font-size: 80px;
+            margin-bottom: 15px;
+            animation: characterBreathe 2s ease-in-out infinite;
+        }
+        @keyframes characterBreathe {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+        .character-stats {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-top: 15px;
+        }
+        .mini-stat {
+            background: rgba(0,0,0,0.3);
+            padding: 8px;
+            border-radius: 8px;
+            text-align: left;
+        }
+        .mini-stat-label {
+            font-size: 11px;
+            color: #888;
+            margin-bottom: 4px;
+        }
+        .mini-stat-bar {
+            height: 6px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 3px;
+            overflow: hidden;
+        }
+        .mini-stat-fill {
+            height: 100%;
+            border-radius: 3px;
+            transition: width 0.5s ease;
+        }
+        .panel {
+            background: rgba(255,255,255,0.05);
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        .panel-title {
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 15px;
+            color: #feca57;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .status-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+        .status-item { background: rgba(0,0,0,0.3); padding: 10px; border-radius: 10px; }
+        .status-label { font-size: 12px; color: #888; margin-bottom: 5px; }
+        .status-bar { height: 8px; background: rgba(255,255,255,0.1); border-radius: 4px; overflow: hidden; }
+        .status-fill { height: 100%; border-radius: 4px; transition: width 0.5s ease; }
+        .fill-health { background: linear-gradient(90deg, #ff6b6b, #ee5a6f); }
+        .fill-hunger { background: linear-gradient(90deg, #feca57, #ff9f43); }
+        .fill-thirst { background: linear-gradient(90deg, #54a0ff, #2e86de); }
+        .fill-energy { background: linear-gradient(90deg, #5f27cd, #341f97); }
+        .resource-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+        .resource-item {
+            background: rgba(0,0,0,0.3);
+            padding: 8px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        .resource-icon { font-size: 20px; margin-bottom: 5px; }
+        .resource-value { font-size: 16px; font-weight: bold; color: #feca57; }
+        .action-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+        .action-btn {
+            padding: 12px; border: none; border-radius: 12px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: #fff; font-size: 13px; font-weight: bold;
+            cursor: pointer; transition: all 0.3s;
+        }
+        .action-btn:hover { transform: scale(1.05); }
+        .action-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .log-container {
+            max-height: 150px; overflow-y: auto;
+            background: rgba(0,0,0,0.3); border-radius: 10px; padding: 10px;
+        }
+        .log-entry { padding: 5px 0; border-bottom: 1px solid rgba(255,255,255,0.05); font-size: 12px; }
+        .log-entry.good { color: #51cf66; }
+        .log-entry.bad { color: #ff6b6b; }
+        .log-entry.info { color: #74c0fc; }
+        .minimap {
+            width: 100%; height: 150px;
+            background: rgba(0,0,0,0.5); border-radius: 10px;
+            overflow: hidden; position: relative;
+        }
+        .minimap-viewport {
+            position: absolute;
+            border: 2px solid #feca57;
+            background: rgba(254,202,87,0.2);
+            pointer-events: none;
+        }
+        .direction-pad {
+            display: grid;
+            grid-template-columns: repeat(3, 50px);
+            grid-template-rows: repeat(2, 50px);
+            gap: 8px; margin: 10px auto;
+        }
+        .dir-btn {
+            width: 50px; height: 50px; border: none; border-radius: 10px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: #fff; font-size: 20px; cursor: pointer;
+        }
+        .dir-btn:hover { transform: scale(1.1); }
+        .dir-up { grid-column: 2; grid-row: 1; }
+        .dir-left { grid-column: 1; grid-row: 2; }
+        .dir-down { grid-column: 2; grid-row: 2; }
+        .dir-right { grid-column: 3; grid-row: 2; }
+        .weather-display {
+            background: linear-gradient(135deg, rgba(102,126,234,0.3), rgba(118,75,162,0.3));
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        .weather-icon { font-size: 40px; }
+        .weather-info { flex: 1; }
+        .weather-name { font-size: 16px; font-weight: bold; color: #fff; }
+        .weather-effect { font-size: 12px; color: #888; }
+        .start-screen {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100vw; height: 100vh;
+            background: linear-gradient(135deg, #2c5530 0%, #1a3320 100%);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        .start-screen.hidden { display: none; }
+        .start-title {
+            font-size: 64px;
+            margin-bottom: 20px;
+            background: linear-gradient(45deg, #feca57, #ff9f43);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .start-btn {
+            padding: 20px 60px;
+            background: linear-gradient(135deg, #feca57, #ff9f43);
+            color: #fff; border: none; border-radius: 30px;
+            font-size: 24px; font-weight: bold;
+            cursor: pointer;
+            box-shadow: 0 10px 30px rgba(254,202,87,0.4);
+            transition: transform 0.3s;
+        }
+        .start-btn:hover { transform: scale(1.1); }
+        .start-desc { color: #fff; font-size: 16px; margin-bottom: 30px; opacity: 0.8; text-align: center; line-height: 1.8; }
+        .feature-list {
+            background: rgba(255,255,255,0.05);
+            padding: 20px;
+            border-radius: 15px;
+            margin-bottom: 30px;
+            text-align: left;
+        }
+        .feature-list h3 { color: #feca57; margin-bottom: 10px; }
+        .feature-list ul { color: #fff; opacity: 0.8; padding-left: 20px; }
+        .feature-list li { margin-bottom: 5px; }
+        @media (max-width: 900px) {
+            .game-wrapper {
+                grid-template-columns: 1fr;
+                grid-template-rows: 1fr 1fr;
+            }
+            .panel-section {
+                border-left: none;
+                border-top: 2px solid rgba(255,255,255,0.1);
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- 开始界面 -->
+    <div class="start-screen" id="startScreen">
+        <div class="start-title">🌴 荒野求生</div>
+        <div class="start-desc">
+            探索未知岛屿 · 收集资源 · 努力生存<br>
+            对抗恶劣天气 · 制作武器装备 · 击败怪物
+        </div>
+        <div class="feature-list">
+            <h3>🎮 游戏特色</h3>
+            <ul>
+                <li>🗺️ 超大地图探索 - 8 个特色地点</li>
+                <li>🌤️ 动态天气系统 - 影响生存难度</li>
+                <li>⚔️ 武器制作系统 - 提升战斗力</li>
+                <li>💰 矿石采集系统 - 金矿银矿铜矿铁矿</li>
+                <li>🎒 资源管理系统 - 食物水木材石头草药</li>
+                <li>👹 怪物战斗系统 - 不同地点不同怪物</li>
+            </ul>
+        </div>
+        <button class="start-btn" onclick="startGame()">开始生存</button>
+    </div>
+
+    <!-- 游戏主界面 -->
+    <div class="game-wrapper" id="gameWrapper" style="display: none;">
+        <!-- 左侧地图区域 -->
+        <div class="map-section">
+            <div class="game-map" id="gameMap"></div>
+            
+            <!-- 左上角悬浮面板 -->
+            <div class="overlay-panel">
+                <!-- 生存日志 -->
+                <div class="overlay-box log-overlay">
+                    <div class="overlay-title">📜 生存日志</div>
+                    <div class="log-container" id="gameLog"></div>
+                </div>
+            </div>
+            
+            <!-- 右上角行动面板 -->
+            <div class="overlay-box action-overlay">
+                <div class="overlay-title">🎮 行动</div>
+                <div class="action-grid">
+                    <button class="action-btn" onclick="gatherResources()">🪓 采集</button>
+                    <button class="action-btn" onclick="craftItem()">🔨 制作</button>
+                    <button class="action-btn" onclick="openShop()">🏪 商店</button>
+                    <button class="action-btn" onclick="restAction()">😴 休息</button>
+                    <button class="action-btn" onclick="eatFood()">🍖 进食</button>
+                    <button class="action-btn" onclick="drinkWater()">💧 喝水</button>
+                    <button class="action-btn" onclick="crushStone()" style="background: linear-gradient(135deg, #b8a080, #8b7355);">⛏️ 碎石</button>
+                </div>
+                <div class="action-grid" style="margin-top: 10px;">
+                    <button class="action-btn" onclick="saveGame()" style="background: linear-gradient(135deg, #51cf66, #37b24d);">💾 存档</button>
+                    <button class="action-btn" onclick="loadGame()" style="background: linear-gradient(135deg, #feca57, #ff9f43);">📂 读档</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 右侧面板 -->
+        <div class="panel-section">
+            <!-- 天气显示 -->
+            <div class="weather-display" id="weatherDisplay">
+                <div class="weather-icon" id="weatherIcon">☀️</div>
+                <div class="weather-info">
+                    <div class="weather-name" id="weatherName">晴天</div>
+                    <div class="weather-effect" id="weatherEffect">无特殊影响</div>
+                </div>
+            </div>
+
+            <!-- 人物展示面板 -->
+            <div class="character-panel">
+                <div class="character-model" id="characterModel">🧍</div>
+                <div style="font-size: 16px; font-weight: bold; color: #feca57; margin-bottom: 10px;">幸存者</div>
+                
+                <!-- 等级和经验 -->
+                <div style="background: rgba(0,0,0,0.3); border-radius: 10px; padding: 10px; margin-bottom: 15px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                        <div style="font-size: 13px; color: #888;">⭐ 等级</div>
+                        <div style="font-size: 20px; font-weight: bold; color: #feca57;" id="levelDisplay">Lv.1</div>
+                    </div>
+                    <div style="font-size: 12px; color: #888; margin-bottom: 5px;">📊 经验值</div>
+                    <div style="height: 8px; background: rgba(255,255,255,0.1); border-radius: 4px; overflow: hidden;">
+                        <div class="status-fill" id="expBar" style="width: 0%; background: linear-gradient(90deg, #feca57, #ff9f43);"></div>
+                    </div>
+                    <div style="font-size: 11px; color: #fff; margin-top: 3px; text-align: right;" id="expDisplay">0/100</div>
+                </div>
+                
+                <!-- 武器装备 -->
+                <div style="background: rgba(0,0,0,0.3); border-radius: 10px; padding: 10px; margin-bottom: 15px;">
+                    <div style="font-size: 13px; color: #ff6b6b; margin-bottom: 8px; font-weight: bold;">⚔️ 当前装备</div>
+                    <div id="equippedWeapons" style="font-size: 12px; color: #fff; min-height: 20px;">
+                        <span style="color: #888;">未装备武器</span>
+                    </div>
+                    <div style="font-size: 11px; color: #888; margin-top: 5px;">攻击力：<span id="attackValue" style="color: #ff6b6b; font-weight: bold;">10</span></div>
+                </div>
+                
+                <!-- 时间显示 -->
+                <div style="background: rgba(0,0,0,0.3); border-radius: 10px; padding: 10px; margin-bottom: 15px;">
+                    <div style="font-size: 13px; color: #888; margin-bottom: 5px;">🕐 当前时间</div>
+                    <div style="font-size: 20px; font-weight: bold; color: #fff;" id="timeDisplay">第 1 天 08:00</div>
+                </div>
+                
+                <div class="character-stats">
+                    <div class="mini-stat">
+                        <div class="mini-stat-label">❤️ 生命</div>
+                        <div class="mini-stat-bar"><div class="mini-stat-fill fill-health" id="charHealthBar" style="width: 100%"></div></div>
+                        <div style="font-size: 12px; color: #fff; margin-top: 3px; text-align: right;" id="healthValue">100/100</div>
+                    </div>
+                    <div class="mini-stat">
+                        <div class="mini-stat-label">🍖 饥饿</div>
+                        <div class="mini-stat-bar"><div class="mini-stat-fill fill-hunger" id="charHungerBar" style="width: 100%"></div></div>
+                        <div style="font-size: 12px; color: #fff; margin-top: 3px; text-align: right;" id="hungerValue">100/100</div>
+                    </div>
+                    <div class="mini-stat">
+                        <div class="mini-stat-label">💧 口渴</div>
+                        <div class="mini-stat-bar"><div class="mini-stat-fill fill-thirst" id="charThirstBar" style="width: 100%"></div></div>
+                        <div style="font-size: 12px; color: #fff; margin-top: 3px; text-align: right;" id="thirstValue">100/100</div>
+                    </div>
+                    <div class="mini-stat">
+                        <div class="mini-stat-label">⚡ 体力</div>
+                        <div class="mini-stat-bar"><div class="mini-stat-fill fill-energy" id="charEnergyBar" style="width: 100%"></div></div>
+                        <div style="font-size: 12px; color: #fff; margin-top: 3px; text-align: right;" id="energyValue">100/100</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 战斗面板 -->
+            <div class="panel" id="combatPanel" style="display: none;">
+                <div class="panel-title">⚔️ 战斗</div>
+                <div style="text-align: center; margin-bottom: 15px;">
+                    <div style="font-size: 40px; margin-bottom: 10px;" id="enemyIcon">👹</div>
+                    <div style="font-size: 18px; font-weight: bold;" id="enemyName">野狼</div>
+                    <div class="status-bar" style="margin-top: 10px;">
+                        <div class="status-fill fill-health" id="enemyHealthBar" style="width: 100%"></div>
+                    </div>
+                    <div style="font-size: 12px; color: #888; margin-top: 5px;">
+                        <span id="enemyHealth">100</span>/100
+                    </div>
+                </div>
+                <div class="action-grid">
+                    <button class="action-btn" onclick="combatAttack()">⚔️ 攻击</button>
+                    <button class="action-btn" onclick="combatDefend()">🛡️ 防御</button>
+                    <button class="action-btn" onclick="combatRun()">🏃 逃跑</button>
+                    <button class="action-btn" onclick="combatSpecial()">✨ 特殊</button>
+                </div>
+            </div>
+
+            <!-- 资源面板 -->
+            <div class="panel">
+                <div class="panel-title">🎒 背包资源</div>
+                
+                <!-- 食品类 -->
+                <div style="margin-bottom: 12px;">
+                    <div style="font-size: 13px; color: #feca57; margin-bottom: 8px; font-weight: bold;">🍖 食品类</div>
+                    <div class="resource-grid">
+                        <div class="resource-item" title="🍖 食物
+恢复饥饿值 +30
+━━━━━━━━━━━━━━
+💰 购买：10 金币/2 份
+🔨 制作：狩猎获得
+━━━━━━━━━━━━━━
+💡 用途：生存必备">
+                            <div class="resource-icon">🍖</div>
+                            <div class="resource-value" id="foodCount">0</div>
+                        </div>
+                        <div class="resource-item" title="💧 水
+恢复口渴值 +40
+━━━━━━━━━━━━━━
+💰 购买：5 金币/3 瓶
+🔨 制作：河流采集
+━━━━━━━━━━━━━━
+💡 用途：生存必备">
+                            <div class="resource-icon">💧</div>
+                            <div class="resource-value" id="waterCount">0</div>
+                        </div>
+                        <div class="resource-item" title="🌿 草药
+可以制作药品
+━━━━━━━━━━━━━━
+💰 购买：20 金币
+🔨 制作：森林采集
+━━━━━━━━━━━━━━
+💡 用途：制作药品 +20 生命">
+                            <div class="resource-icon">🌿</div>
+                            <div class="resource-value" id="herbCount">0</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 材料类 -->
+                <div style="margin-bottom: 12px;">
+                    <div style="font-size: 13px; color: #8bca8b; margin-bottom: 8px; font-weight: bold;">🪵 材料类</div>
+                    <div class="resource-grid">
+                        <div class="resource-item" title="🪵 木材
+基础建筑材料
+━━━━━━━━━━━━━━
+💰 购买：5 金币/5 个
+🔨 制作：森林采集
+━━━━━━━━━━━━━━
+💡 用途：制作武器、工具">
+                            <div class="resource-icon">🪵</div>
+                            <div class="resource-value" id="woodCount">0</div>
+                        </div>
+                        <div class="resource-item" title="🪨 石头
+基础建筑材料
+━━━━━━━━━━━━━━
+💰 购买：3 金币/5 个
+🔨 制作：山地采集
+━━━━━━━━━━━━━━
+💡 用途：制作工具、建筑">
+                            <div class="resource-icon">🪨</div>
+                            <div class="resource-value" id="stoneCount">0</div>
+                        </div>
+                        <div class="resource-item" title="🌾 纤维
+用于制作绳索
+━━━━━━━━━━━━━━
+💰 购买：2 金币/5 个
+🔨 制作：沙滩采集
+━━━━━━━━━━━━━━
+💡 用途：制作绳索、布料">
+                            <div class="resource-icon">🌾</div>
+                            <div class="resource-value" id="fiberCount">0</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 矿产类 -->
+                <div style="margin-bottom: 12px;">
+                    <div style="font-size: 13px; color: #b8a080; margin-bottom: 8px; font-weight: bold;">⛏️ 矿产类</div>
+                    <div class="resource-grid">
+                        <div class="resource-item" title="🥇 金矿
+珍贵矿产
+━━━━━━━━━━━━━━
+💰 出售：100 金币
+🔨 采集：废弃矿场
+━━━━━━━━━━━━━━
+💡 用途：出售换钱">
+                            <div class="resource-icon">🥇</div>
+                            <div class="resource-value" id="goldOreCount">0</div>
+                        </div>
+                        <div class="resource-item" title="🥈 银矿
+珍贵矿产
+━━━━━━━━━━━━━━
+💰 出售：50 金币
+🔨 采集：废弃矿场
+━━━━━━━━━━━━━━
+💡 用途：出售、制作">
+                            <div class="resource-icon">🥈</div>
+                            <div class="resource-value" id="silverOreCount">0</div>
+                        </div>
+                        <div class="resource-item" title="🥉 铜矿
+常见矿产
+━━━━━━━━━━━━━━
+💰 出售：25 金币
+🔨 采集：废弃矿场
+━━━━━━━━━━━━━━
+💡 用途：制作工具、弹药">
+                            <div class="resource-icon">🥉</div>
+                            <div class="resource-value" id="copperOreCount">0</div>
+                        </div>
+                        <div class="resource-item" title="⚙️ 铁矿
+常见矿产
+━━━━━━━━━━━━━━
+💰 出售：15 金币
+🔨 采集：神秘洞穴、高山
+━━━━━━━━━━━━━━
+💡 用途：制作武器、工具">
+                            <div class="resource-icon">⚙️</div>
+                            <div class="resource-value" id="ironOreCount">0</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 装备类 -->
+                <div>
+                    <div style="font-size: 13px; color: #ff6b6b; margin-bottom: 8px; font-weight: bold;">⚔️ 武器装备</div>
+                    <div class="resource-grid">
+                        <div class="resource-item" title="💰 金币
+货币单位，用于购买物品
+━━━━━━━━━━━━━━
+💰 购买：出售矿石获得
+   • 金矿 = 100 金币
+   • 银矿 = 50 金币
+   • 铜矿 = 25 金币
+   • 铁矿 = 15 金币">
+                            <div class="resource-icon">💰</div>
+                            <div class="resource-value" id="goldCount">0</div>
+                        </div>
+                        <div class="resource-item" title="🔪 刀
+近战武器，攻击力 +5
+━━━━━━━━━━━━━━
+💰 购买：100 金币
+🔨 制作：2 铁 +1 木
+━━━━━━━━━━━━━━
+✅ 当前金币：查看上方">
+                            <div class="resource-icon">🔪</div>
+                            <div class="resource-value" id="knifeCount">0</div>
+                        </div>
+                        <div class="resource-item" title="🪓 斧
+多功能武器，攻击力 +8
+采集效率 +20%
+━━━━━━━━━━━━━━
+💰 购买：150 金币
+🔨 制作：3 铁 +2 木 +1 石
+━━━━━━━━━━━━━━
+✅ 当前金币：查看上方">
+                            <div class="resource-icon">🪓</div>
+                            <div class="resource-value" id="axeCount">0</div>
+                        </div>
+                        <div class="resource-item" title="🗡️ 剑
+平衡型武器，攻击力 +10
+━━━━━━━━━━━━━━
+💰 购买：250 金币
+🔨 制作：5 铁 +2 银 +1 木
+━━━━━━━━━━━━━━
+✅ 当前金币：查看上方">
+                            <div class="resource-icon">🗡️</div>
+                            <div class="resource-value" id="swordCount">0</div>
+                        </div>
+                        <div class="resource-item" title="🔫 枪
+长距离武器，攻击力 +15
+需要弹药才能使用
+━━━━━━━━━━━━━━
+💰 购买：500 金币
+🔨 制作：8 铁 +3 铜 +1 银
+━━━━━━━━━━━━━━
+✅ 当前金币：查看上方">
+                            <div class="resource-icon">🔫</div>
+                            <div class="resource-value" id="gunCount">0</div>
+                        </div>
+                        <div class="resource-item" title="🔘 弹药
+枪械必需品，10 发
+━━━━━━━━━━━━━━
+💰 购买：20 金币/10 发
+🔨 制作：1 铜 +1 铁 = 5 发
+━━━━━━━━━━━━━━
+✅ 当前金币：查看上方">
+                            <div class="resource-icon">🔘</div>
+                            <div class="resource-value" id="ammoCount">0</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 商店面板 -->
+            <div class="panel" id="shopPanel" style="display: none;">
+                <div class="panel-title">🏪 商店</div>
+                <div style="margin-bottom: 15px; text-align: center;">
+                    <div style="font-size: 14px; color: #888;">💰 你的金币</div>
+                    <div style="font-size: 24px; font-weight: bold; color: #feca57;" id="shopGoldCount">0</div>
+                </div>
+                
+                <!-- 出售矿石 -->
+                <div style="margin-bottom: 15px;">
+                    <div style="font-size: 13px; color: #b8a080; margin-bottom: 8px; font-weight: bold;">💰 出售矿石</div>
+                    <div class="action-grid">
+                        <button class="action-btn" onclick="sellOre('goldOre', 100)">🥇 金矿 (100💰)</button>
+                        <button class="action-btn" onclick="sellOre('silverOre', 50)">🥈 银矿 (50💰)</button>
+                        <button class="action-btn" onclick="sellOre('copperOre', 25)">🥉 铜矿 (25💰)</button>
+                        <button class="action-btn" onclick="sellOre('ironOre', 15)">⚙️ 铁矿 (15💰)</button>
+                    </div>
+                </div>
+                
+                <!-- 购买物品 -->
+                <div style="margin-bottom: 15px;">
+                    <div style="font-size: 13px; color: #ff6b6b; margin-bottom: 8px; font-weight: bold;">🛒 购买武器</div>
+                    <div class="action-grid">
+                        <button class="action-btn" onclick="buyItem('knife', 100)">🔪 刀 (100💰)</button>
+                        <button class="action-btn" onclick="buyItem('axe', 150)">🪓 斧 (150💰)</button>
+                        <button class="action-btn" onclick="buyItem('sword', 250)">🗡️ 剑 (250💰)</button>
+                        <button class="action-btn" onclick="buyItem('gun', 500)">🔫 枪 (500💰)</button>
+                        <button class="action-btn" onclick="buyItem('ammo', 20)">🔘 弹药 (20💰)</button>
+                        <button class="action-btn" onclick="buyItem('potion', 50)">🧪 药瓶 (50💰)</button>
+                    </div>
+                </div>
+                
+                <!-- 购买物资 -->
+                <div style="margin-bottom: 15px;">
+                    <div style="font-size: 13px; color: #8bca8b; margin-bottom: 8px; font-weight: bold;">🎒 购买物资</div>
+                    <div class="action-grid">
+                        <button class="action-btn" onclick="buyItem('food', 10)">🍖 食物 (10💰)</button>
+                        <button class="action-btn" onclick="buyItem('water', 5)">💧 水 (5💰)</button>
+                        <button class="action-btn" onclick="buyItem('herb', 20)">🌿 草药 (20💰)</button>
+                        <button class="action-btn" onclick="buyItem('tool', 150)">🔧 工具 (150💰)</button>
+                    </div>
+                </div>
+                
+                <button class="action-btn" onclick="closeShop()" style="width: 100%; background: linear-gradient(135deg, #95a5a6, #7f8c8d);">❌ 关闭商店</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 游戏状态
+        let gameState = {
+            day: 1,
+            hour: 8,  // 早上 8 点开始
+            time: '白天',
+            level: 1,
+            exp: 0,
+            expToNext: 100,
+            health: 100,
+            hunger: 100,
+            thirst: 100,
+            energy: 100,
+            attack: 10,
+            defense: 0,
+            resources: {
+                food: 0, water: 0, wood: 0, stone: 0,
+                herb: 0, fiber: 0,
+                goldOre: 0, silverOre: 0, copperOre: 0, ironOre: 0,
+                gold: 0,
+                knife: 0, axe: 0, sword: 0, gun: 0, ammo: 0
+            },
+            mapX: 1000,
+            mapY: 1000,
+            inCombat: false,
+            currentEnemy: null,
+            weather: 'sunny',
+            weatherDuration: 0
+        };
+
+        // 获得经验
+        function gainExp(amount) {
+            gameState.exp += amount;
+            addLog(`✨ 获得${amount}点经验`, 'good');
+            
+            // 检查是否升级
+            while (gameState.exp >= gameState.expToNext) {
+                levelUp();
+            }
+            updateUI();
+        }
+
+        // 升级
+        function levelUp() {
+            gameState.exp -= gameState.expToNext;
+            gameState.level += 1;
+            gameState.expToNext = Math.floor(gameState.expToNext * 1.5);
+            
+            // 属性提升
+            const healthBoost = 20;
+            const attackBoost = 2;
+            
+            gameState.health = Math.min(100, gameState.health + healthBoost);
+            gameState.attack += attackBoost;
+            
+            addLog(`🎉 升级了！当前等级 Lv.${gameState.level}，生命 +${healthBoost}，攻击 +${attackBoost}`, 'good');
+        }
+
+        // 天气配置
+        const WEATHER_TYPES = {
+            sunny: { icon: '☀️', name: '晴天', effect: '无特殊影响', duration: [3, 5] },
+            rainy: { icon: '🌧️', name: '雨天', effect: '移动消耗 +20%', duration: [2, 4] },
+            cloudy: { icon: '☁️', name: '多云', effect: '无特殊影响', duration: [2, 4] },
+            stormy: { icon: '⛈️', name: '暴雨', effect: '移动消耗 +50%, 生命 -5/天', duration: [1, 2] },
+            foggy: { icon: '🌫️', name: '大雾', effect: '遇到怪物概率 +50%', duration: [2, 3] }
+        };
+
+        // 地图配置
+        const MAP_CONFIG = {
+            width: 2000,
+            height: 2000,
+            cellSize: 50,
+            points: [
+                { x: 1000, y: 1000, type: 'start', icon: '🏕️', name: '起始营地' },
+                { x: 800, y: 900, type: 'forest', icon: '🌲', name: '茂密森林' },
+                { x: 1200, y: 900, type: 'river', icon: '🏞️', name: '清澈河流' },
+                { x: 900, y: 1200, type: 'mine', icon: '⛏️', name: '废弃矿场' },
+                { x: 1300, y: 1100, type: 'cave', icon: '🕳️', name: '神秘洞穴' },
+                { x: 1100, y: 1300, type: 'beach', icon: '🏖️', name: '沙滩' },
+                { x: 700, y: 1100, type: 'village', icon: '🏚️', name: '废弃村庄' },
+                { x: 1400, y: 800, type: 'mountain', icon: '⛰️', name: '高山' },
+            ]
+        };
+
+        // 场景数据 - 每个地点的资源生成配置
+        const SCENES = {
+            start: { 
+                name: '起始营地', 
+                resources: [
+                    { type: 'wood', chance: 0.6, amount: [1, 3] },
+                    { type: 'stone', chance: 0.5, amount: [1, 2] },
+                    { type: 'fiber', chance: 0.3, amount: [1, 2] }
+                ],
+                monsters: [], 
+                gatherChance: 0.7 
+            },
+            forest: { 
+                name: '茂密森林', 
+                resources: [
+                    { type: 'wood', chance: 0.8, amount: [2, 5] },
+                    { type: 'food', chance: 0.5, amount: [1, 3] },
+                    { type: 'herb', chance: 0.4, amount: [1, 2] },
+                    { type: 'fiber', chance: 0.3, amount: [1, 3] }
+                ],
+                monsters: ['野狼', '毒蛇'], 
+                gatherChance: 0.75 
+            },
+            river: { 
+                name: '清澈河流', 
+                resources: [
+                    { type: 'water', chance: 0.9, amount: [2, 5] },
+                    { type: 'food', chance: 0.5, amount: [1, 3] },
+                    { type: 'fiber', chance: 0.3, amount: [1, 2] }
+                ],
+                monsters: ['鳄鱼'], 
+                gatherChance: 0.7 
+            },
+            mine: { 
+                name: '废弃矿场', 
+                resources: [
+                    { type: 'stone', chance: 0.8, amount: [2, 5] },
+                    { type: 'ironOre', chance: 0.6, amount: [1, 3] },
+                    { type: 'copperOre', chance: 0.5, amount: [1, 2] },
+                    { type: 'silverOre', chance: 0.3, amount: [1, 2] },
+                    { type: 'goldOre', chance: 0.15, amount: [1, 2] }
+                ],
+                monsters: ['毒蜘蛛'], 
+                gatherChance: 0.8 
+            },
+            cave: { 
+                name: '神秘洞穴', 
+                resources: [
+                    { type: 'stone', chance: 0.7, amount: [2, 4] },
+                    { type: 'ironOre', chance: 0.6, amount: [1, 3] },
+                    { type: 'copperOre', chance: 0.4, amount: [1, 2] }
+                ],
+                monsters: ['巨熊', '蝙蝠'], 
+                gatherChance: 0.7 
+            },
+            beach: { 
+                name: '沙滩', 
+                resources: [
+                    { type: 'water', chance: 0.7, amount: [1, 3] },
+                    { type: 'food', chance: 0.5, amount: [1, 2] },
+                    { type: 'fiber', chance: 0.6, amount: [2, 5] }
+                ],
+                monsters: ['螃蟹'], 
+                gatherChance: 0.6 
+            },
+            village: { 
+                name: '废弃村庄', 
+                resources: [
+                    { type: 'wood', chance: 0.7, amount: [2, 4] },
+                    { type: 'food', chance: 0.4, amount: [1, 2] },
+                    { type: 'fiber', chance: 0.4, amount: [1, 3] }
+                ],
+                monsters: ['丧尸'], 
+                gatherChance: 0.65 
+            },
+            mountain: { 
+                name: '高山', 
+                resources: [
+                    { type: 'stone', chance: 0.8, amount: [2, 5] },
+                    { type: 'ironOre', chance: 0.5, amount: [1, 3] },
+                    { type: 'herb', chance: 0.4, amount: [1, 2] }
+                ],
+                monsters: ['鹰', '雪豹'], 
+                gatherChance: 0.6 
+            }
+        };
+
+        // 怪物数据
+        const MONSTERS = {
+            '野狼': { icon: '🐺', health: 50, attack: 15, exp: 20 },
+            '毒蛇': { icon: '🐍', health: 30, attack: 20, exp: 15 },
+            '鳄鱼': { icon: '🐊', health: 80, attack: 25, exp: 35 },
+            '毒蜘蛛': { icon: '🕷️', health: 25, attack: 18, exp: 12 },
+            '巨熊': { icon: '🐻', health: 100, attack: 30, exp: 50 },
+            '蝙蝠': { icon: '🦇', health: 20, attack: 12, exp: 10 },
+            '螃蟹': { icon: '🦀', health: 30, attack: 10, exp: 15 },
+            '丧尸': { icon: '🧟', health: 60, attack: 20, exp: 30 },
+            '鹰': { icon: '🦅', health: 40, attack: 16, exp: 18 },
+            '雪豹': { icon: '🐆', health: 70, attack: 28, exp: 40 }
+        };
+
+        // 启动游戏
+        function startGame() {
+            document.getElementById('startScreen').classList.add('hidden');
+            document.getElementById('gameWrapper').style.display = 'grid';
+            renderMap();
+            updateUI();
+            renderMinimap();
+            changeWeather();
+            addLog('🌴 你醒来时发现自己在一个荒岛上...', 'info');
+            addLog('📦 开始你的生存之旅吧！', 'good');
+        }
+
+        // 渲染大地图
+        function renderMap() {
+            const mapEl = document.getElementById('gameMap');
+            if (!mapEl) return;
+            mapEl.innerHTML = '';
+            const player = document.createElement('div');
+            player.className = 'player-marker';
+            player.id = 'playerMarker';
+            player.textContent = '🧍';
+            player.style.left = gameState.mapX + 'px';
+            player.style.top = gameState.mapY + 'px';
+            mapEl.appendChild(player);
+            MAP_CONFIG.points.forEach(point => {
+                const pointEl = document.createElement('div');
+                pointEl.className = 'map-point';
+                pointEl.innerHTML = `${point.icon}<div class="tooltip">${point.name}</div>`;
+                pointEl.style.left = point.x + 'px';
+                pointEl.style.top = point.y + 'px';
+                pointEl.onclick = () => moveTo(point.x, point.y);
+                mapEl.appendChild(pointEl);
+            });
+            updateMapView();
+        }
+
+        // 更新地图视图
+        function updateMapView() {
+            const mapEl = document.getElementById('gameMap');
+            const wrapper = document.querySelector('.map-section');
+            if (!mapEl || !wrapper) return;
+            const offsetX = wrapper.clientWidth / 2 - gameState.mapX;
+            const offsetY = wrapper.clientHeight / 2 - gameState.mapY;
+            mapEl.style.transform = `translate(${offsetX}px, ${offsetY}px)`;
+        }
+
+        // 移动
+        function moveTo(targetX, targetY) {
+            if (gameState.inCombat) { addLog('⚠️ 正在战斗中，无法移动！', 'bad'); return; }
+            const dx = targetX - gameState.mapX;
+            const dy = targetY - gameState.mapY;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+            if (distance < 50) { addLog('📍 已到达目的地', 'info'); return; }
+            const steps = Math.floor(distance / MAP_CONFIG.cellSize);
+            let energyCost = steps * 2;
+            if (gameState.weather === 'rainy') energyCost = Math.floor(energyCost * 1.2);
+            if (gameState.weather === 'stormy') energyCost = Math.floor(energyCost * 1.5);
+            if (gameState.energy < energyCost) { addLog('⚠️ 体力不足，无法移动', 'bad'); return; }
+            gameState.energy -= energyCost;
+            
+            // 添加移动动画
+            const player = document.getElementById('playerMarker');
+            if (player) {
+                player.classList.add('player-walking');
+                // 添加脚步特效
+                createFootstep(gameState.mapX, gameState.mapY);
+            }
+            
+            gameState.mapX = targetX;
+            gameState.mapY = targetY;
+            
+            setTimeout(() => {
+                if (player) {
+                    player.style.left = targetX + 'px';
+                    player.style.top = targetY + 'px';
+                    player.classList.remove('player-walking');
+                    createFootstep(targetX, targetY);
+                }
+            }, 100);
+            
+            setTimeout(() => {
+                updateMapView();
+                updateUI();
+                addLog(`🚶 移动到新位置，消耗${energyCost}点体力`, 'info');
+                checkLocation();
+                checkWeatherChange();
+            }, 500);
+        }
+
+        // 创建脚步特效
+        function createFootstep(x, y) {
+            const mapEl = document.getElementById('gameMap');
+            if (!mapEl) return;
+            const footstep = document.createElement('div');
+            footstep.className = 'footstep';
+            footstep.textContent = '👣';
+            footstep.style.left = (x - 10) + 'px';
+            footstep.style.top = (y + 10) + 'px';
+            mapEl.appendChild(footstep);
+            setTimeout(() => footstep.remove(), 2000);
+        }
+
+        function moveDirection(dir) {
+            if (gameState.inCombat) { addLog('⚠️ 正在战斗中，无法移动！', 'bad'); return; }
+            const step = MAP_CONFIG.cellSize;
+            let newX = gameState.mapX;
+            let newY = gameState.mapY;
+            switch(dir) {
+                case 'up': newY -= step; break;
+                case 'down': newY += step; break;
+                case 'left': newX -= step; break;
+                case 'right': newX += step; break;
+            }
+            newX = Math.max(0, Math.min(MAP_CONFIG.width, newX));
+            newY = Math.max(0, Math.min(MAP_CONFIG.height, newY));
+            moveTo(newX, newY);
+        }
+
+        // 检查位置
+        function checkLocation() {
+            const point = MAP_CONFIG.points.find(p => {
+                return Math.abs(p.x - gameState.mapX) < 100 && Math.abs(p.y - gameState.mapY) < 100;
+            });
+            if (point) {
+                const scene = SCENES[point.type];
+                addLog(`📍 到达${scene.name}`, 'good');
+                // 随机遇到怪物
+                if (scene.monsters.length > 0 && Math.random() < 0.3) {
+                    const monsterName = scene.monsters[Math.floor(Math.random() * scene.monsters.length)];
+                    startCombat(monsterName);
+                }
+            }
+        }
+
+        // 天气系统
+        function changeWeather() {
+            const weathers = Object.keys(WEATHER_TYPES);
+            const randomWeather = weathers[Math.floor(Math.random() * weathers.length)];
+            gameState.weather = randomWeather;
+            const weather = WEATHER_TYPES[randomWeather];
+            gameState.weatherDuration = Math.floor(Math.random() * (weather.duration[1] - weather.duration[0] + 1)) + weather.duration[0];
+            document.getElementById('weatherIcon').textContent = weather.icon;
+            document.getElementById('weatherName').textContent = weather.name;
+            document.getElementById('weatherEffect').textContent = weather.effect;
+            addLog(`🌤️ 天气变为${weather.name}，将持续${gameState.weatherDuration}天`, 'info');
+        }
+
+        function checkWeatherChange() {
+            gameState.weatherDuration--;
+            if (gameState.weatherDuration <= 0) {
+                changeWeather();
+            }
+            // 暴雨天气扣血
+            if (gameState.weather === 'stormy' && Math.random() < 0.2) {
+                gameState.health -= 5;
+                addLog('⛈️ 暴雨让你感到不适，生命 -5', 'bad');
+                if (gameState.health <= 0) {
+                    gameOver();
+                }
+            }
+            updateUI();
+        }
+
+        // 战斗系统
+        function startCombat(monsterName) {
+            const monster = MONSTERS[monsterName];
+            gameState.inCombat = true;
+            gameState.currentEnemy = {
+                name: monsterName,
+                icon: monster.icon,
+                health: monster.health,
+                maxHealth: monster.health,
+                attack: monster.attack,
+                exp: monster.exp
+            };
+            document.getElementById('combatPanel').style.display = 'block';
+            document.getElementById('enemyIcon').textContent = monster.icon;
+            document.getElementById('enemyName').textContent = monsterName;
+            updateEnemyHealth();
+            addLog(`⚔️ 遭遇了${monsterName}！准备战斗！`, 'bad');
+        }
+
+        function updateEnemyHealth() {
+            const enemy = gameState.currentEnemy;
+            if (!enemy) return;
+            const percent = (enemy.health / enemy.maxHealth) * 100;
+            document.getElementById('enemyHealthBar').style.width = percent + '%';
+            document.getElementById('enemyHealth').textContent = enemy.health;
+        }
+
+        function combatAttack() {
+            if (!gameState.inCombat) return;
+            const enemy = gameState.currentEnemy;
+            const damage = gameState.attack + Math.floor(Math.random() * 5);
+            enemy.health -= damage;
+            addLog(`⚔️ 你攻击${enemy.name}，造成${damage}点伤害`, 'info');
+            if (enemy.health <= 0) {
+                winCombat();
+            } else {
+                enemyTurn();
+            }
+            updateEnemyHealth();
+        }
+
+        function combatDefend() {
+            if (!gameState.inCombat) return;
+            const defense = 10 + gameState.defense;
+            addLog(`🛡️ 你采取防御姿态，减少${defense}点伤害`, 'info');
+            gameState.currentEnemy.attack = Math.max(0, gameState.currentEnemy.attack - defense);
+            enemyTurn();
+        }
+
+        function combatRun() {
+            if (!gameState.inCombat) return;
+            if (Math.random() < 0.5) {
+                addLog('🏃 你成功逃脱了！', 'good');
+                endCombat();
+            } else {
+                addLog('⚠️ 逃跑失败！', 'bad');
+                enemyTurn();
+            }
+        }
+
+        function combatSpecial() {
+            if (!gameState.inCombat) return;
+            if (gameState.resources.weapon > 0) {
+                gameState.resources.weapon--;
+                const damage = gameState.attack * 2 + 10;
+                gameState.currentEnemy.health -= damage;
+                addLog(`✨ 使用武器发动特殊攻击！造成${damage}点伤害`, 'good');
+                if (gameState.currentEnemy.health <= 0) {
+                    winCombat();
+                } else {
+                    enemyTurn();
+                }
+                updateUI();
+                updateEnemyHealth();
+            } else {
+                addLog('⚠️ 没有武器，无法发动特殊攻击！', 'bad');
+            }
+        }
+
+        function enemyTurn() {
+            const enemy = gameState.currentEnemy;
+            const damage = Math.max(0, enemy.attack - gameState.defense);
+            gameState.health -= damage;
+            addLog(`💥 ${enemy.name}攻击你，造成${damage}点伤害`, 'bad');
+            if (gameState.health <= 0) {
+                gameOver();
+            }
+            updateUI();
+        }
+
+        function winCombat() {
+            const enemy = gameState.currentEnemy;
+            addLog(`🎉 你击败了${enemy.name}！获得${enemy.exp}经验`, 'good');
+            gameState.attack += 1;
+            gainExp(enemy.exp); // 战斗胜利获得经验
+            endCombat();
+        }
+
+        function endCombat() {
+            gameState.inCombat = false;
+            gameState.currentEnemy = null;
+            document.getElementById('combatPanel').style.display = 'none';
+            updateUI();
+        }
+
+        function gameOver() {
+            addLog('💀 你死了！游戏结束！', 'bad');
+            alert(`游戏结束！\n你生存了${gameState.day}天\n击败了${gameState.attack - 10}个怪物`);
+            location.reload();
+        }
+
+        // 采集系统
+        function gatherResources() {
+            if (gameState.inCombat) { addLog('⚠️ 正在战斗中！', 'bad'); return; }
+            
+            // 检查体力是否足够
+            if (gameState.energy < 5) {
+                addLog('⚠️ 体力不足！需要休息或进食', 'bad');
+                return;
+            }
+            
+            const point = MAP_CONFIG.points.find(p => {
+                return Math.abs(p.x - gameState.mapX) < 100 && Math.abs(p.y - gameState.mapY) < 100;
+            });
+            
+            if (!point) {
+                addLog('⚠️ 这里没有什么可采集的，先移动到地点吧', 'info');
+                return;
+            }
+            
+            const scene = SCENES[point.type];
+            
+            // 检查是否采集成功
+            if (Math.random() > scene.gatherChance) {
+                addLog('🪓 你搜索了一番，一无所获', 'info');
+                gameState.energy -= 3;
+                gainExp(2);
+                checkSurvival(); // 检查生存状态
+                updateUI();
+                return;
+            }
+            
+            // 根据资源配置随机选择资源
+            let selectedResource = null;
+            const rand = Math.random();
+            let cumulativeChance = 0;
+            
+            for (const res of scene.resources) {
+                cumulativeChance += res.chance;
+                if (rand <= cumulativeChance) {
+                    selectedResource = res;
+                    break;
+                }
+            }
+            
+            // 如果没有选中（概率和<1），默认给第一个资源
+            if (!selectedResource && scene.resources.length > 0) {
+                selectedResource = scene.resources[0];
+            }
+            
+            if (!selectedResource) {
+                addLog('⚠️ 这里没有什么可采集的', 'info');
+                return;
+            }
+            
+            // 计算获得数量
+            const amount = Math.floor(Math.random() * (selectedResource.amount[1] - selectedResource.amount[0] + 1)) + selectedResource.amount[0];
+            
+            gameState.resources[selectedResource.type] = (gameState.resources[selectedResource.type] || 0) + amount;
+            gameState.energy -= 5;
+            
+            addLog(`🪓 采集了${amount}个${getResourceName(selectedResource.type)}`, 'good');
+            gainExp(5 * amount);
+            
+            // 特殊提示
+            if (['goldOre', 'silverOre', 'copperOre', 'ironOre'].includes(selectedResource.type)) {
+                addLog(`💎 珍贵的矿石！可以去商店换钱`, 'good');
+            }
+            
+            checkSurvival(); // 检查生存状态
+            updateUI();
+        }
+
+        function getResourceName(key) {
+            const names = {
+                food: '食物', water: '水', wood: '木材', stone: '石头',
+                herb: '草药', fiber: '纤维',
+                goldOre: '金矿', silverOre: '银矿', copperOre: '铜矿', ironOre: '铁矿',
+                gold: '金币', weapon: '武器'
+            };
+            return names[key] || key;
+        }
+
+        // 制作系统
+        function craftItem() {
+            if (gameState.inCombat) { addLog('⚠️ 正在战斗中！', 'bad'); return; }
+            const recipes = [
+                { name: '武器', need: { wood: 3, stone: 2 }, give: { weapon: 1 }, desc: '可以在商店购买或战斗使用' },
+                { name: '草药', need: { herb: 2 }, give: { health: 20 }, desc: '生命 +20' },
+                { name: '工具', need: { wood: 2, ironOre: 1 }, give: { attack: 2 }, desc: '永久提升采集效率' },
+            ];
+            const recipe = recipes[0];
+            for (let res in recipe.need) {
+                if (gameState.resources[res] < recipe.need[res]) {
+                    addLog(`⚠️ 材料不足！需要${recipe.need[res]}个${getResourceName(res)}`, 'bad');
+                    return;
+                }
+            }
+            for (let res in recipe.need) {
+                gameState.resources[res] -= recipe.need[res];
+            }
+            if (recipe.give.weapon) {
+                gameState.resources.weapon += recipe.give.weapon;
+                addLog(`🔨 制作了${recipe.name}！${recipe.desc}`, 'good');
+            }
+            if (recipe.give.health) {
+                gameState.health = Math.min(100, gameState.health + recipe.give.health);
+                addLog(`🌿 制作了${recipe.name}！${recipe.desc}`, 'good');
+            }
+            if (recipe.give.attack) {
+                gameState.attack += recipe.give.attack;
+                addLog(`🔧 制作了${recipe.name}！${recipe.desc}`, 'good');
+            }
+            updateUI();
+        }
+
+        // 休息
+        function restAction() {
+            if (gameState.inCombat) { addLog('⚠️ 正在战斗中，无法休息！', 'bad'); return; }
+            
+            // 每次休息过 6 个小时
+            gameState.hour += 6;
+            
+            // 检查是否过了一天
+            if (gameState.hour >= 24) {
+                gameState.hour = gameState.hour - 24;
+                gameState.day += 1;
+                addLog(`🌅 新的一天开始了！第${gameState.day}天`, 'good');
+            }
+            
+            // 更新时间段
+            updateTimePeriod();
+            
+            // 休息恢复体力和生命
+            const energyRecovery = 40;
+            const healthRecovery = 10;
+            gameState.energy = Math.min(100, gameState.energy + energyRecovery);
+            gameState.health = Math.min(100, gameState.health + healthRecovery);
+            
+            // 休息消耗饥饿和口渴
+            gameState.hunger = Math.max(0, gameState.hunger - 15);
+            gameState.thirst = Math.max(0, gameState.thirst - 20);
+            
+            addLog(`😴 你休息了 6 小时，体力 +${energyRecovery}，生命 +${healthRecovery}`, 'good');
+            
+            // 检查生存状态
+            checkSurvival();
+            updateUI();
+        }
+
+        // 更新时间段
+        function updateTimePeriod() {
+            if (gameState.hour >= 6 && gameState.hour < 18) {
+                gameState.time = '白天';
+            } else if (gameState.hour >= 18 && gameState.hour < 22) {
+                gameState.time = '夜晚';
+            } else {
+                gameState.time = '深夜';
+            }
+        }
+
+        // 检查生存状态
+        function checkSurvival() {
+            let hasWarning = false;
+            
+            if (gameState.energy <= 0) {
+                gameState.health -= 5;
+                addLog('⚠️ 体力耗尽，生命 -5', 'bad');
+                hasWarning = true;
+            }
+            if (gameState.hunger <= 0) {
+                gameState.health -= 10;
+                addLog('⚠️ 你太饿了，生命 -10', 'bad');
+                hasWarning = true;
+            }
+            if (gameState.thirst <= 0) {
+                gameState.health -= 15;
+                addLog('⚠️ 你太渴了，生命 -15', 'bad');
+                hasWarning = true;
+            }
+            if (gameState.health <= 0) {
+                gameOver();
+            }
+            
+            // 限制最低值
+            gameState.energy = Math.max(-50, gameState.energy);
+            gameState.hunger = Math.max(0, gameState.hunger);
+            gameState.thirst = Math.max(0, gameState.thirst);
+        }
+
+        // 进食
+        function eatFood() {
+            if (gameState.inCombat) { addLog('⚠️ 正在战斗中！', 'bad'); return; }
+            if (gameState.resources.food > 0) {
+                gameState.resources.food--;
+                gameState.hunger = Math.min(100, gameState.hunger + 30);
+                gameState.health = Math.min(100, gameState.health + 5);
+                addLog('🍖 你吃了些食物，饱腹感 +30', 'good');
+            } else {
+                addLog('⚠️ 没有食物了！', 'bad');
+            }
+            updateUI();
+        }
+
+        // 碎石开采矿石
+        function crushStone() {
+            if (gameState.inCombat) { addLog('⚠️ 正在战斗中！', 'bad'); return; }
+            if (!gameState.resources.stone || gameState.resources.stone <= 0) {
+                addLog('⚠️ 没有石头可以砸碎', 'bad');
+                updateUI();
+                return;
+            }
+            if (gameState.energy < 3) {
+                addLog('⚠️ 体力不足！需要休息或进食', 'bad');
+                updateUI();
+                return;
+            }
+
+            // 消耗1个石头和3点体力
+            gameState.resources.stone--;
+            gameState.energy -= 3;
+
+            // 20%概率出矿
+            if (Math.random() < 0.2) {
+                // 矿石种类概率分配
+                const oreRoll = Math.random();
+                let oreType, logMsg;
+                if (oreRoll < 0.4) {
+                    oreType = 'ironOre';
+                    logMsg = '⛏️ 砸碎石头发现了铁矿！';
+                } else if (oreRoll < 0.7) {
+                    oreType = 'copperOre';
+                    logMsg = '⛏️ 砸碎石头发现了铜矿！';
+                } else if (oreRoll < 0.9) {
+                    oreType = 'silverOre';
+                    logMsg = '✨ 砸碎石头发现了银矿！运气不错！';
+                } else {
+                    oreType = 'goldOre';
+                    logMsg = '🌟 砸碎石头发现了金矿！太幸运了！';
+                }
+                gameState.resources[oreType] = (gameState.resources[oreType] || 0) + 1;
+                addLog(logMsg, 'good');
+                addLog('💎 珍贵的矿石！可以去商店换钱', 'good');
+            } else {
+                addLog('🪨 砸碎了石头，什么都没发现...', 'info');
+            }
+
+            gainExp(2);
+            checkSurvival();
+            updateUI();
+        }
+
+        // 喝水
+        function drinkWater() {
+            if (gameState.inCombat) { addLog('⚠️ 正在战斗中！', 'bad'); return; }
+            if (gameState.resources.water > 0) {
+                gameState.resources.water--;
+                gameState.thirst = Math.min(100, gameState.thirst + 40);
+                gameState.health = Math.min(100, gameState.health + 3);
+                addLog('💧 你喝了些水，口渴值 +40', 'good');
+            } else {
+                addLog('⚠️ 没有水了！', 'bad');
+            }
+            updateUI();
+        }
+
+        // 打开商店
+        function openShop() {
+            if (gameState.inCombat) { addLog('⚠️ 正在战斗中，无法打开商店！', 'bad'); return; }
+            document.getElementById('shopPanel').style.display = 'block';
+            updateShopUI();
+            addLog('🏪 你打开了商店', 'info');
+        }
+
+        // 关闭商店
+        function closeShop() {
+            document.getElementById('shopPanel').style.display = 'none';
+            addLog('❌ 你关闭了商店', 'info');
+        }
+
+        // 更新商店 UI
+        function updateShopUI() {
+            document.getElementById('shopGoldCount').textContent = gameState.resources.gold;
+        }
+
+        // 出售矿石
+        function sellOre(oreType, price) {
+            if (gameState.inCombat) { addLog('⚠️ 正在战斗中！', 'bad'); return; }
+            if (gameState.resources[oreType] > 0) {
+                gameState.resources[oreType]--;
+                gameState.resources.gold += price;
+                addLog(`💰 出售了 1 个${getResourceName(oreType)}，获得${price}金币`, 'good');
+                updateUI();
+                updateShopUI();
+            } else {
+                addLog(`⚠️ 没有${getResourceName(oreType)}可以出售！`, 'bad');
+            }
+        }
+
+        // 购买物品
+        function buyItem(itemType, cost) {
+            if (gameState.inCombat) { addLog('⚠️ 正在战斗中！', 'bad'); return; }
+            if (gameState.resources.gold >= cost) {
+                gameState.resources.gold -= cost;
+                
+                switch(itemType) {
+                    case 'knife':
+                        gameState.resources.knife++;
+                        gameState.attack += 5;
+                        addLog(`🔪 购买了刀！攻击力 +5`, 'good');
+                        break;
+                    case 'axe':
+                        gameState.resources.axe++;
+                        gameState.attack += 8;
+                        addLog(`🪓 购买了斧！攻击力 +8，采集效率提升`, 'good');
+                        break;
+                    case 'sword':
+                        gameState.resources.sword++;
+                        gameState.attack += 10;
+                        addLog(`🗡️ 购买了剑！攻击力 +10`, 'good');
+                        break;
+                    case 'gun':
+                        gameState.resources.gun++;
+                        gameState.attack += 15;
+                        addLog(`🔫 购买了枪！攻击力 +15`, 'good');
+                        break;
+                    case 'ammo':
+                        gameState.resources.ammo += 10;
+                        addLog(`🔘 购买了 10 发弹药`, 'good');
+                        break;
+                    case 'food':
+                        gameState.resources.food += 2;
+                        addLog(`🍖 购买了 2 份食物`, 'good');
+                        break;
+                    case 'water':
+                        gameState.resources.water += 3;
+                        addLog(`💧 购买了 3 瓶水`, 'good');
+                        break;
+                    case 'herb':
+                        gameState.resources.herb++;
+                        addLog(`🌿 购买了草药`, 'good');
+                        break;
+                    case 'tool':
+                        gameState.attack += 2;
+                        addLog(`🔧 购买了工具！采集效率提升`, 'good');
+                        break;
+                    case 'potion':
+                        gameState.health = Math.min(100, gameState.health + 30);
+                        addLog(`🧪 使用了药瓶！生命 +30`, 'good');
+                        break;
+                }
+                updateUI();
+                updateShopUI();
+            } else {
+                addLog(`⚠️ 金币不足！需要${cost}金币`, 'bad');
+            }
+        }
+
+        // 更新 UI
+        function updateUI() {
+            // 更新等级和经验
+            document.getElementById('levelDisplay').textContent = `Lv.${gameState.level}`;
+            const expPercent = (gameState.exp / gameState.expToNext) * 100;
+            document.getElementById('expBar').style.width = expPercent + '%';
+            document.getElementById('expDisplay').textContent = `${gameState.exp}/${gameState.expToNext}`;
+            
+            // 更新武器装备显示
+            updateEquippedWeapons();
+            
+            // 更新时间显示
+            const timeStr = gameState.hour.toString().padStart(2, '0');
+            document.getElementById('timeDisplay').textContent = `第${gameState.day}天 ${timeStr}:00`;
+            
+            // 更新人物面板
+            updateBar('charHealthBar', gameState.health);
+            updateBar('charHungerBar', gameState.hunger);
+            updateBar('charThirstBar', gameState.thirst);
+            updateBar('charEnergyBar', gameState.energy);
+            
+            // 更新人物面板数值
+            document.getElementById('healthValue').textContent = `${Math.floor(gameState.health)}/100`;
+            document.getElementById('hungerValue').textContent = `${Math.floor(gameState.hunger)}/100`;
+            document.getElementById('thirstValue').textContent = `${Math.floor(gameState.thirst)}/100`;
+            document.getElementById('energyValue').textContent = `${Math.floor(gameState.energy)}/100`;
+            
+            // 更新资源显示
+            document.getElementById('foodCount').textContent = gameState.resources.food;
+            document.getElementById('waterCount').textContent = gameState.resources.water;
+            document.getElementById('woodCount').textContent = gameState.resources.wood;
+            document.getElementById('stoneCount').textContent = gameState.resources.stone;
+            document.getElementById('herbCount').textContent = gameState.resources.herb;
+            document.getElementById('fiberCount').textContent = gameState.resources.fiber;
+            document.getElementById('goldOreCount').textContent = gameState.resources.goldOre;
+            document.getElementById('silverOreCount').textContent = gameState.resources.silverOre;
+            document.getElementById('copperOreCount').textContent = gameState.resources.copperOre;
+            document.getElementById('ironOreCount').textContent = gameState.resources.ironOre;
+            document.getElementById('goldCount').textContent = gameState.resources.gold;
+            document.getElementById('knifeCount').textContent = gameState.resources.knife;
+            document.getElementById('axeCount').textContent = gameState.resources.axe;
+            document.getElementById('swordCount').textContent = gameState.resources.sword;
+            document.getElementById('gunCount').textContent = gameState.resources.gun;
+            document.getElementById('ammoCount').textContent = gameState.resources.ammo;
+            
+            // 根据状态改变人物表情
+            updateCharacterModel();
+        }
+
+        // 更新武器装备显示
+        function updateEquippedWeapons() {
+            const weapons = [];
+            const attackValue = document.getElementById('attackValue');
+            
+            if (gameState.resources.knife > 0) weapons.push('🔪');
+            if (gameState.resources.axe > 0) weapons.push('🪓');
+            if (gameState.resources.sword > 0) weapons.push('🗡️');
+            if (gameState.resources.gun > 0) weapons.push('🔫');
+            
+            const equippedDiv = document.getElementById('equippedWeapons');
+            if (weapons.length > 0) {
+                equippedDiv.innerHTML = weapons.join(' ');
+            } else {
+                equippedDiv.innerHTML = '<span style="color: #888;">未装备武器</span>';
+            }
+            
+            attackValue.textContent = gameState.attack;
+        }
+
+        // 启动游戏时初始化时间
+        function startGame() {
+            document.getElementById('startScreen').classList.add('hidden');
+            document.getElementById('gameWrapper').style.display = 'grid';
+            renderMap();
+            updateUI();
+            renderMinimap();
+            addLog('🌴 你醒来时发现自己在一个荒岛上...', 'info');
+            addLog('📦 开始你的生存之旅吧！', 'good');
+            updateTimePeriod();
+        }
+
+        // 更新人物模型表情
+        function updateCharacterModel() {
+            const model = document.getElementById('characterModel');
+            if (!model) return;
+            
+            if (gameState.health < 30) {
+                model.textContent = '🤕';  // 受伤
+            } else if (gameState.hunger < 30) {
+                model.textContent = '😫';  // 饥饿
+            } else if (gameState.thirst < 30) {
+                model.textContent = '🥵';  // 口渴
+            } else if (gameState.energy < 30) {
+                model.textContent = '😴';  // 疲劳
+            } else if (gameState.inCombat) {
+                model.textContent = '😤';  // 战斗
+            } else {
+                model.textContent = '🧍';  // 正常
+            }
+        }
+
+        function updateBar(id, value) {
+            const bar = document.getElementById(id);
+            if (bar) bar.style.width = value + '%';
+        }
+
+        // 日志
+        function addLog(message, type = 'info') {
+            const logEl = document.getElementById('gameLog');
+            if (!logEl) return;
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${type}`;
+            entry.textContent = `[第${gameState.day}天] ${message}`;
+            logEl.insertBefore(entry, logEl.firstChild);
+            while (logEl.children.length > 50) logEl.removeChild(logEl.lastChild);
+        }
+
+        // 键盘控制
+        document.addEventListener('keydown', (e) => {
+            if (document.getElementById('startScreen').classList.contains('hidden')) {
+                switch(e.key) {
+                    case 'ArrowUp': case 'w': case 'W': moveDirection('up'); break;
+                    case 'ArrowDown': case 's': case 'S': moveDirection('down'); break;
+                    case 'ArrowLeft': case 'a': case 'A': moveDirection('left'); break;
+                    case 'ArrowRight': case 'd': case 'D': moveDirection('right'); break;
+                }
+            }
+        });
+
+        window.addEventListener('resize', () => {
+            updateMapView();
+        });
+
+        // 存档功能
+        function saveGame() {
+            const saveData = {
+                gameState: gameState,
+                timestamp: new Date().toISOString()
+            };
+            localStorage.setItem('survivalSave', JSON.stringify(saveData));
+            addLog('💾 游戏已保存！', 'good');
+            alert('✅ 游戏已保存！\n存档时间：' + new Date().toLocaleString('zh-CN'));
+        }
+
+        // 读档功能
+        function loadGame() {
+            const saveData = localStorage.getItem('survivalSave');
+            if (!saveData) {
+                alert('❌ 没有找到存档！\n请先保存游戏。');
+                addLog('❌ 没有找到存档！', 'bad');
+                return;
+            }
+            
+            try {
+                const parsed = JSON.parse(saveData);
+                gameState = parsed.gameState;
+                
+                // 重新渲染
+                renderMap();
+                updateUI();
+                addLog('📂 游戏已加载！', 'good');
+                alert('✅ 游戏已加载！\n存档时间：' + new Date(parsed.timestamp).toLocaleString('zh-CN'));
+            } catch (e) {
+                alert('❌ 存档损坏！');
+                addLog('❌ 存档损坏！', 'bad');
+            }
+        }
+    </script>
+</body>
+</html>

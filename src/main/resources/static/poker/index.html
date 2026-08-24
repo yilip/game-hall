@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>德州扑克 - 游戏大厅</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div id="game-container">
+        <!-- 登录界面 -->
+        <div id="login-screen" class="screen active">
+            <div class="login-box">
+                <h1>🎰 德州扑克</h1>
+                <div class="input-group">
+                    <label for="username">昵称</label>
+                    <input type="text" id="username" placeholder="输入你的昵称" maxlength="12">
+                </div>
+                <div class="input-group">
+                    <label>头像</label>
+                    <div class="avatar-selector">
+                        <span class="avatar-option selected" data-avatar="🐶">🐶</span>
+                        <span class="avatar-option" data-avatar="🐱">🐱</span>
+                        <span class="avatar-option" data-avatar="🐭">🐭</span>
+                        <span class="avatar-option" data-avatar="🐹">🐹</span>
+                        <span class="avatar-option" data-avatar="🐰">🐰</span>
+                        <span class="avatar-option" data-avatar="🦊">🦊</span>
+                        <span class="avatar-option" data-avatar="🐻">🐻</span>
+                        <span class="avatar-option" data-avatar="🐼">🐼</span>
+                    </div>
+                </div>
+                <button id="join-btn" class="btn-primary">加入游戏</button>
+                <button id="spectate-btn" class="btn-secondary">旁观模式</button>
+                <div style="margin-top: 20px;">
+                    <a href="ai-styles.html" style="color: #a0aec0; text-decoration: none; font-size: 14px;">🎭 查看 AI 玩家风格</a>
+                </div>
+            </div>
+        </div>
+
+        <!-- 游戏界面 -->
+        <div id="game-screen" class="screen">
+            <!-- 顶部信息栏 -->
+            <div class="top-bar">
+                <div class="game-info">
+                    <span id="phase-display">等待开始</span>
+                    <span class="separator">|</span>
+                    <span>底池：<span id="pot-display">0</span></span>
+                </div>
+                <div class="player-info">
+                    <span id="player-name">玩家</span>
+                    <span class="chips">筹码：<span id="player-chips">10000</span></span>
+                </div>
+            </div>
+
+            <!-- 牌桌区域 -->
+            <div class="poker-table">
+                <!-- 公共牌区域 -->
+                <div class="community-area">
+                    <div class="community-cards" id="community-cards">
+                        <div class="card-placeholder"></div>
+                        <div class="card-placeholder"></div>
+                        <div class="card-placeholder"></div>
+                        <div class="card-placeholder"></div>
+                        <div class="card-placeholder"></div>
+                    </div>
+                    <div class="pot-display">
+                        <span class="label">底池</span>
+                        <span class="amount" id="table-pot">0</span>
+                    </div>
+                </div>
+
+                <!-- 玩家座位 -->
+                <div class="seats">
+                    <!-- 座位 0-7，按椭圆形排列 -->
+                    <div class="seat seat-0" data-seat="0">
+                        <div class="player-card">
+                            <div class="avatar">🎮</div>
+                            <div class="player-name">空位</div>
+                            <div class="chips">0</div>
+                            <div class="cards">
+                                <div class="card back"></div>
+                                <div class="card back"></div>
+                            </div>
+                            <div class="dealer-button" style="display:none;">D</div>
+                            <div class="action-indicator"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="seat seat-1" data-seat="1">
+                        <div class="player-card">
+                            <div class="avatar">🎮</div>
+                            <div class="player-name">空位</div>
+                            <div class="chips">0</div>
+                            <div class="cards">
+                                <div class="card back"></div>
+                                <div class="card back"></div>
+                            </div>
+                            <div class="dealer-button" style="display:none;">D</div>
+                            <div class="action-indicator"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="seat seat-2" data-seat="2">
+                        <div class="player-card">
+                            <div class="avatar">🎮</div>
+                            <div class="player-name">空位</div>
+                            <div class="chips">0</div>
+                            <div class="cards">
+                                <div class="card back"></div>
+                                <div class="card back"></div>
+                            </div>
+                            <div class="dealer-button" style="display:none;">D</div>
+                            <div class="action-indicator"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="seat seat-3" data-seat="3">
+                        <div class="player-card">
+                            <div class="avatar">🎮</div>
+                            <div class="player-name">空位</div>
+                            <div class="chips">0</div>
+                            <div class="cards">
+                                <div class="card back"></div>
+                                <div class="card back"></div>
+                            </div>
+                            <div class="dealer-button" style="display:none;">D</div>
+                            <div class="action-indicator"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="seat seat-4" data-seat="4">
+                        <div class="player-card">
+                            <div class="avatar">🎮</div>
+                            <div class="player-name">空位</div>
+                            <div class="chips">0</div>
+                            <div class="cards">
+                                <div class="card back"></div>
+                                <div class="card back"></div>
+                            </div>
+                            <div class="dealer-button" style="display:none;">D</div>
+                            <div class="action-indicator"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="seat seat-5" data-seat="5">
+                        <div class="player-card">
+                            <div class="avatar">🎮</div>
+                            <div class="player-name">空位</div>
+                            <div class="chips">0</div>
+                            <div class="cards">
+                                <div class="card back"></div>
+                                <div class="card back"></div>
+                            </div>
+                            <div class="dealer-button" style="display:none;">D</div>
+                            <div class="action-indicator"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="seat seat-6" data-seat="6">
+                        <div class="player-card">
+                            <div class="avatar">🎮</div>
+                            <div class="player-name">空位</div>
+                            <div class="chips">0</div>
+                            <div class="cards">
+                                <div class="card back"></div>
+                                <div class="card back"></div>
+                            </div>
+                            <div class="dealer-button" style="display:none;">D</div>
+                            <div class="action-indicator"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="seat seat-7" data-seat="7">
+                        <div class="player-card">
+                            <div class="avatar">🎮</div>
+                            <div class="player-name">空位</div>
+                            <div class="chips">0</div>
+                            <div class="cards">
+                                <div class="card back"></div>
+                                <div class="card back"></div>
+                            </div>
+                            <div class="dealer-button" style="display:none;">D</div>
+                            <div class="action-indicator"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 操作按钮区域 -->
+                <div class="action-panel" id="action-panel">
+                    <button class="action-btn fold-btn" id="btn-fold">弃牌</button>
+                    <button class="action-btn check-btn" id="btn-check">过牌</button>
+                    <button class="action-btn call-btn" id="btn-call">跟注</button>
+                    <div class="raise-control">
+                        <input type="range" id="raise-slider" min="0" max="10000" value="0">
+                        <span id="raise-amount">0</span>
+                        <button class="action-btn raise-btn" id="btn-raise">加注</button>
+                    </div>
+                    <button class="action-btn allin-btn" id="btn-allin">全下</button>
+                </div>
+
+                <!-- 消息提示 -->
+                <div class="message-toast" id="message-toast"></div>
+            </div>
+
+            <!-- 控制按钮 -->
+            <div class="game-controls">
+                <button id="start-btn" class="btn-primary">开始游戏</button>
+                <button id="leave-btn" class="btn-danger">离开</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/game.js"></script>
+    <script src="js/ui.js"></script>
+</body>
+</html>

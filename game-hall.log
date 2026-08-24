@@ -1,0 +1,22 @@
+
+  .   ____          _            __ _ _
+ /\\ / ___'_ __ _ _(_)_ __  __ _ \ \ \ \
+( ( )\___ | '_ | '_| | '_ \/ _` | \ \ \ \
+ \\/  ___)| |_)| | | | | || (_| |  ) ) ) )
+  '  |____| .__|_| |_|_| |_\__, | / / / /
+ =========|_|==============|___/=/_/_/_/
+ :: Spring Boot ::                (v3.2.0)
+
+2026-08-23T15:30:35.115+08:00  INFO 19372 --- [game-hall] [           main] c.example.game.hall.GameHallApplication  : Starting GameHallApplication v0.0.1-SNAPSHOT using Java 21.0.10 with PID 19372 (D:\claw\projects\game-hall\target\game-hall-0.0.1-SNAPSHOT.jar started by yi_li in C:\Users\yi_li\.openclaw\workspace)
+2026-08-23T15:30:35.119+08:00  INFO 19372 --- [game-hall] [           main] c.example.game.hall.GameHallApplication  : No active profile set, falling back to 1 default profile: "default"
+2026-08-23T15:30:36.017+08:00  INFO 19372 --- [game-hall] [           main] o.s.b.w.embedded.tomcat.TomcatWebServer  : Tomcat initialized with port 8080 (http)
+2026-08-23T15:30:36.027+08:00  INFO 19372 --- [game-hall] [           main] o.apache.catalina.core.StandardService   : Starting service [Tomcat]
+2026-08-23T15:30:36.028+08:00  INFO 19372 --- [game-hall] [           main] o.apache.catalina.core.StandardEngine    : Starting Servlet engine: [Apache Tomcat/10.1.16]
+2026-08-23T15:30:36.071+08:00  INFO 19372 --- [game-hall] [           main] o.a.c.c.C.[Tomcat].[localhost].[/]       : Initializing Spring embedded WebApplicationContext
+2026-08-23T15:30:36.072+08:00  INFO 19372 --- [game-hall] [           main] w.s.c.ServletWebServerApplicationContext : Root WebApplicationContext: initialization completed in 892 ms
+2026-08-23T15:30:36.183+08:00  INFO 19372 --- [game-hall] [           main] o.s.b.a.w.s.WelcomePageHandlerMapping    : Adding welcome page: class path resource [static/index.html]
+2026-08-23T15:30:36.423+08:00  INFO 19372 --- [game-hall] [           main] o.s.b.w.embedded.tomcat.TomcatWebServer  : Tomcat started on port 8080 (http) with context path ''
+2026-08-23T15:30:36.483+08:00  INFO 19372 --- [game-hall] [           main] c.example.game.hall.GameHallApplication  : Started GameHallApplication in 1.703 seconds (process running for 2.367)
+2026-08-23T15:35:00.558+08:00  INFO 19372 --- [game-hall] [nio-8080-exec-1] o.a.c.c.C.[Tomcat].[localhost].[/]       : Initializing Spring DispatcherServlet 'dispatcherServlet'
+2026-08-23T15:35:00.558+08:00  INFO 19372 --- [game-hall] [nio-8080-exec-1] o.s.web.servlet.DispatcherServlet        : Initializing Servlet 'dispatcherServlet'
+2026-08-23T15:35:00.559+08:00  INFO 19372 --- [game-hall] [nio-8080-exec-1] o.s.web.servlet.DispatcherServlet        : Completed initialization in 1 ms

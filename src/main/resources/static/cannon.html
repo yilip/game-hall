@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>三大炮 vs 十五兵</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Microsoft YaHei', Arial, sans-serif;
+            background: transparent;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            padding: 20px;
+            overflow-y: auto;
+        }
+        .game-container {
+            background: linear-gradient(135deg, #fff 0%, #f8f9fa 100%);
+            border-radius: 20px;
+            padding: 25px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            width: 100%;
+            max-width: 800px;
+            margin: 20px auto;
+        }
+        h1 { text-align: center; color: #333; margin-bottom: 10px; font-size: 28px; }
+        .game-info {
+            text-align: center;
+            margin-bottom: 20px;
+            padding: 20px;
+            background: linear-gradient(135deg, #f0f0f0, #e0e0e0);
+            border-radius: 15px;
+        }
+        .current-turn { font-size: 24px; font-weight: bold; color: #667eea; margin-bottom: 15px; }
+        .piece-count { display: flex; justify-content: space-around; font-size: 18px; flex-wrap: wrap; gap: 10px; }
+        .cannon-count { color: #e74c3c; font-weight: bold; background: rgba(231,76,60,0.1); padding: 8px 15px; border-radius: 20px; }
+        .soldier-count { color: #3498db; font-weight: bold; background: rgba(52,152,219,0.1); padding: 8px 15px; border-radius: 20px; }
+        .board {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 8px;
+            background: linear-gradient(135deg, #8b4513, #a0522d);
+            padding: 15px;
+            border-radius: 15px;
+            margin-bottom: 20px;
+            max-width: 500px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        .cell {
+            aspect-ratio: 1;
+            background: linear-gradient(135deg, #deb887, #d2a679);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: clamp(28px, 8vw, 48px);
+            cursor: pointer;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+            user-select: none;
+        }
+        .cell:hover { background: linear-gradient(135deg, #f4a460, #e69550); transform: scale(1.08); }
+        .cell.selected { background: linear-gradient(135deg, #ffd700, #ffed4e); box-shadow: 0 0 20px rgba(255,215,0,0.8); transform: scale(1.1); }
+        .controls { display: flex; gap: 15px; justify-content: center; flex-wrap: wrap; margin-top: 20px; }
+        button {
+            padding: 15px 35px;
+            font-size: 18px;
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        .btn-cannon { background: linear-gradient(135deg, #e74c3c, #c0392b); color: white; font-size: 20px; padding: 18px 45px; }
+        .btn-soldier { background: linear-gradient(135deg, #3498db, #2980b9); color: white; font-size: 20px; padding: 18px 45px; }
+        .btn-reset { background: linear-gradient(135deg, #95a5a6, #7f8c8d); color: white; }
+        .side-selection { text-align: center; margin-bottom: 25px; padding: 20px; background: linear-gradient(135deg, #f8f9fa, #e9ecef); border-radius: 15px; }
+        .side-selection h3 { margin-bottom: 20px; color: #333; font-size: 22px; }
+        .side-buttons { display: flex; gap: 20px; justify-content: center; flex-wrap: wrap; }
+        .game-over { text-align: center; padding: 25px; background: linear-gradient(135deg, #f093fb, #f5576c); color: white; border-radius: 15px; margin-bottom: 20px; font-size: 28px; font-weight: bold; }
+        .rules { margin-top: 25px; padding: 20px; background: linear-gradient(135deg, #f9f9f9, #f0f0f0); border-radius: 15px; font-size: 15px; color: #666; }
+        .rules h4 { color: #333; margin-bottom: 12px; font-size: 18px; }
+        .rules ul { margin-left: 25px; }
+        .rules li { margin-bottom: 8px; line-height: 1.6; }
+        @keyframes slideDown { from { transform: translate(-50%, -100px); opacity: 0; } to { transform: translate(-50%, 0); opacity: 1; } }
+        @keyframes slideUp { from { transform: translate(-50%, 0); opacity: 1; } to { transform: translate(-50%, -100px); opacity: 0; } }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <h1>&#127918; &#19977;&#22823;&#28846; vs &#21313;&#20116;&#20853;</h1>
+
+        <div id="sideSelection" class="side-selection">
+            <h3>&#127918; &#36873;&#25321;&#20320;&#30340;&#38453;&#33829;&#65306;</h3>
+            <div class="side-buttons">
+                <button class="btn-cannon" onclick="selectSide('CANNON')">&#127919; &#25105;&#36873;&#19977;&#22823;&#28846;&#65288;AI &#21313;&#20116;&#20853;&#65289;</button>
+                <button class="btn-soldier" onclick="selectSide('SOLDIER')">&#129526; &#25105;&#36873;&#21313;&#20116;&#20853;&#65288;AI &#19977;&#22823;&#28846;&#65289;</button>
+            </div>
+            <p style="margin-top: 20px; color: #666; font-size: 14px;">&#128161; &#25552;&#31034;&#65306;&#36873;&#25321;&#21518;&#20320;&#23558;&#19982; AI &#23545;&#25112;&#65292;&#20320;&#36208;&#19968;&#27493;&#65292;AI &#33258;&#21160;&#22238;&#24212;</p>
+        </div>
+
+        <div id="gameOver" class="game-over" style="display: none;"></div>
+
+        <div class="game-info">
+            <div id="currentTurn" class="current-turn">&#31561;&#24453;&#24320;&#22987;...</div>
+            <div class="piece-count">
+                <span class="cannon-count">&#127919; &#22823;&#28846;&#65306;<span id="cannonCount">3</span></span>
+                <span class="soldier-count">&#129526; &#23567;&#20853;&#65306;<span id="soldierCount">15</span></span>
+            </div>
+        </div>
+
+        <div id="board" class="board"></div>
+
+        <div class="controls">
+            <button class="btn-reset" onclick="location.reload()">&#128260; &#37325;&#26032;&#24320;&#22987;</button>
+        </div>
+
+        <div class="rules">
+            <h4>&#128220; &#28216;&#25103;&#35268;&#21017;&#65306;</h4>
+            <ul>
+                <li>&#127919; <strong>&#22823;&#28846;&#26041;&#65306;</strong>3 &#20010;&#22823;&#28846;&#65292;&#21021;&#22987;&#20301;&#32622;&#22312;&#31532; 1 &#25490;&#30340; 1&#12289;3&#12289;5 &#20301;</li>
+                <li>&#129526; <strong>&#23567;&#20853;&#26041;&#65306;</strong>15 &#20010;&#23567;&#20853;&#65292;&#21344;&#28385;&#31532; 3&#12289;4&#12289;5 &#25490;</li>
+                <li>&#128694; <strong>&#31227;&#21160;&#65306;</strong>&#27599;&#27425;&#21482;&#33021;&#36208;&#19968;&#27493;&#65288;&#19978;&#19979;&#24038;&#21491;&#65289;</li>
+                <li>&#127861;&#65039; <strong>&#22823;&#28846;&#21507;&#23376;&#65306;</strong>&#38548;&#19968;&#20010;&#31354;&#26684;&#21507;&#23567;&#20853;</li>
+                <li>&#11093; <strong>&#22260;&#22256;&#65306;</strong>&#23567;&#20853;&#25226;&#22823;&#28846;&#19978;&#19979;&#24038;&#21491;&#22260;&#20303;&#65292;&#22823;&#28846;&#34987;&#31227;&#38500;</li>
+                <li>&#127919; <strong>&#32988;&#21033;&#65306;</strong>&#22823;&#28846;&#26041;&#21507;&#23436;&#25152;&#26377;&#23567;&#20853;&#65292;&#25110;&#23567;&#20853;&#26041;&#22260;&#20303;&#25152;&#26377;&#22823;&#28846;</li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = '/api/cannon';
+        let selectedCell = null;
+        let playerSide = null;
+        let gameStarted = false;
+
+        async function selectSide(side) {
+            playerSide = side;
+            document.getElementById('sideSelection').style.display = 'none';
+            await startSinglePlayer(side);
+        }
+
+        async function startSinglePlayer(humanSide) {
+            try {
+                const response = await fetch(API_BASE + '/start-single', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ humanSide: humanSide })
+                });
+                const data = await response.json();
+                if (data.success) {
+                    gameStarted = true;
+                    renderBoard(data.board.grid);
+                    updateGameInfo(data.gameState, data.board.cannons, data.board.soldiers);
+                    showNotification('Game started! You are: ' + (humanSide === 'CANNON' ? 'Cannon' : 'Soldier'));
+
+                    // If player chose SOLDIER, AI (cannon) goes first
+                    if (humanSide === 'SOLDIER') {
+                        showNotification('AI thinking...');
+                        await sleep(800);
+                        var aiResponse = await fetch(API_BASE + '/ai-move', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' }
+                        });
+                        var aiData = await aiResponse.json();
+                        console.log('AI first move:', aiData);
+                        if (aiData.success) {
+                            renderBoard(aiData.board.grid);
+                            updateGameInfo(aiData.gameState, aiData.board.cannons, aiData.board.soldiers);
+                            showNotification('Your turn!');
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error('Start failed:', error);
+                alert('Cannot connect to server!');
+            }
+        }
+
+        async function handleCellClick(row, col) {
+            if (!gameStarted) return;
+
+            const gameStateResp = await fetch(API_BASE + '/state');
+            const gameState = await gameStateResp.json();
+
+            if (!gameState.success || gameState.gameOver) return;
+
+            // Check if it's player's turn
+            var isCannonTurn = gameState.currentPlayer === '\u4e09\u5927\u70ae';
+            var isPlayerCannon = playerSide === 'CANNON';
+            var isMyTurn = (isCannonTurn && isPlayerCannon) || (!isCannonTurn && !isPlayerCannon);
+
+            if (!isMyTurn) {
+                showNotification('Not your turn!');
+                return;
+            }
+
+            var grid = gameState.board.grid;
+            var clickedPiece = grid[row][col];
+
+            if (selectedCell) {
+                // Try to move
+                var move = {
+                    fromRow: selectedCell.row,
+                    fromCol: selectedCell.col,
+                    toRow: row,
+                    toCol: col
+                };
+
+                console.log('Move:', move);
+
+                try {
+                    var response = await fetch(API_BASE + '/move', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(move)
+                    });
+                    var data = await response.json();
+                    console.log('Move response:', data);
+
+                    if (data.success) {
+                        renderBoard(data.board.grid);
+                        updateGameInfo(data.gameState, data.board.cannons, data.board.soldiers);
+                        selectedCell = null;
+
+                        if (data.gameOver) {
+                            showGameOver(data.winner);
+                            return;
+                        }
+
+                        // Check if AI needs to move
+                        var newStateResp = await fetch(API_BASE + '/state');
+                        var newState = await newStateResp.json();
+
+                        var aiIsCannon = newState.currentPlayer === '\u4e09\u5927\u70ae';
+                        var playerIsCannon = playerSide === 'CANNON';
+                        var aiTurn = (aiIsCannon && !playerIsCannon) || (!aiIsCannon && playerIsCannon);
+
+                        if (aiTurn && !newState.gameOver) {
+                            showNotification('AI thinking...');
+                            await sleep(800);
+
+                            var aiResponse = await fetch(API_BASE + '/ai-move', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' }
+                            });
+                            var aiData = await aiResponse.json();
+                            console.log('AI response:', aiData);
+
+                            if (aiData.success) {
+                                renderBoard(aiData.board.grid);
+                                updateGameInfo(aiData.gameState, aiData.board.cannons, aiData.board.soldiers);
+
+                                if (aiData.gameOver) {
+                                    showGameOver(aiData.winner);
+                                    return;
+                                }
+                                showNotification('Your turn!');
+                            }
+                        } else {
+                            showNotification('Your turn!');
+                        }
+                    } else {
+                        console.error('Move failed:', data.message);
+                        showNotification('Invalid move!');
+                        selectedCell = null;
+                        renderBoard(gameState.board.grid);
+                    }
+                } catch (error) {
+                    console.error('Move error:', error);
+                    selectedCell = null;
+                    renderBoard(gameState.board.grid);
+                }
+            } else {
+                // Select a piece
+                if (clickedPiece !== '\u00b7') {
+                    var isCannonPiece = clickedPiece === '\ud83c\udfaf';
+                    var isCurrentCannonTurn = gameState.currentPlayer === '\u4e09\u5927\u70ae';
+                    var isPlayerCannon2 = playerSide === 'CANNON';
+
+                    if ((isCurrentCannonTurn && isPlayerCannon2 && isCannonPiece) ||
+                        (!isCurrentCannonTurn && !isPlayerCannon2 && !isCannonPiece)) {
+                        selectedCell = { row: row, col: col };
+                        renderBoard(gameState.board.grid, selectedCell);
+                    }
+                }
+            }
+        }
+
+        function sleep(ms) {
+            return new Promise(function(resolve) { setTimeout(resolve, ms); });
+        }
+
+        function showNotification(message) {
+            var notification = document.createElement('div');
+            notification.style.cssText = 'position:fixed;top:20px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,#667eea,#764ba2);color:white;padding:15px 30px;border-radius:25px;font-size:18px;font-weight:bold;z-index:10000;animation:slideDown 0.3s ease;';
+            notification.textContent = message;
+            document.body.appendChild(notification);
+            setTimeout(function() {
+                notification.style.animation = 'slideUp 0.3s ease';
+                setTimeout(function() { notification.remove(); }, 300);
+            }, 2000);
+        }
+
+        function renderBoard(grid, selected) {
+            var boardEl = document.getElementById('board');
+            boardEl.innerHTML = '';
+            for (var i = 0; i < 5; i++) {
+                for (var j = 0; j < 5; j++) {
+                    var cell = document.createElement('div');
+                    cell.className = 'cell';
+                    cell.textContent = grid[i][j];
+                    if (selected && selected.row === i && selected.col === j) {
+                        cell.classList.add('selected');
+                    }
+                    (function(r, c) {
+                        cell.onclick = function() { handleCellClick(r, c); };
+                    })(i, j);
+                    boardEl.appendChild(cell);
+                }
+            }
+        }
+
+        function updateGameInfo(gameState, cannons, soldiers) {
+            var lines = gameState.split('\n');
+            for (var k = 0; k < lines.length; k++) {
+                if (lines[k].indexOf('\u5f53\u524d\u56de\u5408') >= 0) {
+                    document.getElementById('currentTurn').textContent = lines[k].replace('\u5f53\u524d\u56de\u5408\uff1a', '');
+                    break;
+                }
+            }
+            document.getElementById('cannonCount').textContent = cannons;
+            document.getElementById('soldierCount').textContent = soldiers;
+        }
+
+        function showGameOver(winner) {
+            var gameOverEl = document.getElementById('gameOver');
+            gameOverEl.textContent = winner;
+            gameOverEl.style.display = 'block';
+        }
+
+        // Initial board
+        var initialBoard = [
+            ['\ud83c\udfaf', '\u00b7', '\ud83c\udfaf', '\u00b7', '\ud83c\udfaf'],
+            ['\u00b7', '\u00b7', '\u00b7', '\u00b7', '\u00b7'],
+            ['\ud83e\ude96', '\ud83e\ude96', '\ud83e\ude96', '\ud83e\ude96', '\ud83e\ude96'],
+            ['\ud83e\ude96', '\ud83e\ude96', '\ud83e\ude96', '\ud83e\ude96', '\ud83e\ude96'],
+            ['\ud83e\ude96', '\ud83e\ude96', '\ud83e\ude96', '\ud83e\ude96', '\ud83e\ude96']
+        ];
+        renderBoard(initialBoard);
+    </script>
+</body>
+</html>

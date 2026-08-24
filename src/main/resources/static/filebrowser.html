@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>📁 文件管理器</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, 'Microsoft YaHei', sans-serif; background: #1a1a2e; color: #fff; min-height: 100vh; }
+        .container { max-width: 800px; margin: 0 auto; padding: 20px; }
+        .header { padding: 20px; background: rgba(102,126,234,0.3); border-radius: 15px; margin-bottom: 20px; display: flex; align-items: center; gap: 15px; }
+        .header h1 { font-size: 24px; }
+        .breadcrumb { padding: 10px 15px; background: rgba(255,255,255,0.1); border-radius: 10px; margin-bottom: 15px; font-size: 14px; }
+        .breadcrumb a { color: #667eea; text-decoration: none; }
+        .breadcrumb a:hover { text-decoration: underline; }
+        .breadcrumb span { color: #999; margin: 0 5px; }
+        .file-list { background: rgba(255,255,255,0.05); border-radius: 15px; overflow: hidden; }
+        .file-item { display: flex; align-items: center; padding: 12px 20px; border-bottom: 1px solid rgba(255,255,255,0.05); cursor: pointer; transition: background 0.2s; }
+        .file-item:hover { background: rgba(255,255,255,0.1); }
+        .file-item:last-child { border-bottom: none; }
+        .file-icon { font-size: 24px; margin-right: 15px; width: 30px; text-align: center; }
+        .file-name { flex: 1; font-size: 15px; }
+        .file-name a { color: #fff; text-decoration: none; }
+        .file-name a:hover { color: #667eea; }
+        .file-size { font-size: 13px; color: #999; min-width: 80px; text-align: right; }
+        .empty { padding: 40px; text-align: center; color: #666; font-size: 16px; }
+        .back-btn { display: inline-block; padding: 8px 20px; background: rgba(102,126,234,0.3); border-radius: 8px; color: #667eea; text-decoration: none; font-size: 14px; margin-bottom: 15px; }
+        .back-btn:hover { background: rgba(102,126,234,0.5); }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <span style="font-size: 36px;">📁</span>
+            <div>
+                <h1>文件管理器</h1>
+                <div style="font-size: 13px; color: #999; margin-top: 5px;">D:/claw</div>
+            </div>
+        </div>
+        <div class="breadcrumb" id="breadcrumb"></div>
+        <div class="file-list" id="fileList"></div>
+    </div>
+    <script>
+        var currentPath = '/';
+
+        function init() {
+            var hash = window.location.hash.replace('#', '') || '/';
+            loadDir(hash);
+        }
+
+        function loadDir(path) {
+            currentPath = path;
+            fetch('/api/files' + path)
+                .then(function(r) { return r.json(); })
+                .then(function(data) { render(data); })
+                .catch(function(e) { document.getElementById('fileList').innerHTML = '<div class="empty">加载失败</div>'; });
+        }
+
+        function render(data) {
+            // breadcrumb
+            var parts = currentPath.split('/').filter(function(p) { return p; });
+            var bc = '<a href="#/" onclick="loadDir(\'/\')">🏠 根目录</a>';
+            var buildPath = '';
+            for (var i = 0; i < parts.length; i++) {
+                buildPath += '/' + parts[i];
+                bc += '<span>/</span><a href="#' + buildPath + '" onclick="loadDir(\'' + buildPath + '\')">' + parts[i] + '</a>';
+            }
+            document.getElementById('breadcrumb').innerHTML = bc;
+
+            // file list
+            var html = '';
+            if (currentPath !== '/') {
+                var parent = currentPath.split('/').slice(0, -1).join('/') || '/';
+                html += '<div class="file-item" onclick="loadDir(\'' + parent + '\')"><div class="file-icon">⬆️</div><div class="file-name">..</div><div class="file-size"></div></div>';
+            }
+
+            if (!data.items || data.items.length === 0) {
+                html += '<div class="empty">📭 空目录</div>';
+            } else {
+                for (var j = 0; j < data.items.length; j++) {
+                    var item = data.items[j];
+                    var icon = item.isDir ? '📂' : getFileIcon(item.name);
+                    var size = item.isDir ? '' : formatSize(item.size);
+                    if (item.isDir) {
+                        var dirPath = currentPath === '/' ? '/' + item.name : currentPath + '/' + item.name;
+                        html += '<div class="file-item" onclick="loadDir(\'' + dirPath + '\')"><div class="file-icon">' + icon + '</div><div class="file-name">' + item.name + '</div><div class="file-size">' + size + '</div></div>';
+                    } else {
+                        var filePath = '/files' + (currentPath === '/' ? '/' : currentPath + '/') + item.name;
+                        html += '<div class="file-item"><div class="file-icon">' + icon + '</div><div class="file-name"><a href="' + filePath + '" target="_blank">' + item.name + '</a></div><div class="file-size">' + size + '</div></div>';
+                    }
+                }
+            }
+            document.getElementById('fileList').innerHTML = html;
+            window.location.hash = currentPath;
+        }
+
+        function getFileIcon(name) {
+            var ext = name.split('.').pop().toLowerCase();
+            var icons = {
+                // 文档
+                md: '📝', txt: '📄', pdf: '📕', doc: '📘', docx: '📘', xls: '📗', xlsx: '📗', ppt: '📙', pptx: '📙', csv: '📊', rtf: '📄',
+                // 网页
+                html: '🌐', htm: '🌐', css: '🎨', js: '⚡', ts: '⚡', jsx: '⚡', tsx: '⚡', vue: '💚',
+                // 编程
+                java: '☕', py: '🐍', go: '🔵', rs: '🦀', c: '🔷', cpp: '🔷', h: '🔷', cs: '🟣', rb: '💎', php: '🐘', swift: '🧡', kt: '🟠',
+                // 数据
+                json: '📋', xml: '📰', yml: '⚙️', yaml: '⚙️', toml: '⚙️', ini: '⚙️', properties: '⚙️', env: '🔒', sql: '🗃️',
+                // 图片
+                png: '🖼️', jpg: '🖼️', jpeg: '🖼️', gif: '🖼️', svg: '🎨', ico: '🖼️', webp: '🖼️', bmp: '🖼️',
+                // 音视频
+                mp3: '🎵', wav: '🎵', flac: '🎵', ogg: '🎵', mp4: '🎬', avi: '🎬', mkv: '🎬', mov: '🎬', wmv: '🎬',
+                // 压缩
+                zip: '📦', rar: '📦', '7z': '📦', tar: '📦', gz: '📦', jar: '📦',
+                // 可执行
+                exe: '⚡', msi: '⚡', bat: '🔧', sh: '🔧', ps1: '🔧', cmd: '🔧',
+                // 字体
+                ttf: '🔤', otf: '🔤', woff: '🔤', woff2: '🔤',
+                // 其他
+                log: '📜', bak: '💾', tmp: '🗑️', lock: '🔒', gitignore: '🚫'
+            };
+            return icons[ext] || '📄';
+        }
+
+        function canPreview(name) {
+            var ext = name.split('.').pop().toLowerCase();
+            var previewable = ['pdf', 'png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'bmp', 'txt', 'md', 'json', 'xml', 'html', 'htm', 'css', 'js', 'java', 'py', 'yml', 'yaml', 'properties', 'log', 'csv', 'sql', 'sh', 'bat', 'mp4', 'mp3', 'wav', 'ogg'];
+            return previewable.indexOf(ext) >= 0;
+        }
+
+        function formatSize(bytes) {
+            if (bytes === 0) return '0 B';
+            var k = 1024;
+            var sizes = ['B', 'KB', 'MB', 'GB'];
+            var i = Math.floor(Math.log(bytes) / Math.log(k));
+            return (bytes / Math.pow(k, i)).toFixed(1) + ' ' + sizes[i];
+        }
+
+        init();
+        window.addEventListener('hashchange', function() { init(); });
+    </script>
+</body>
+</html>

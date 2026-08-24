@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI 玩家风格 - 德州扑克</title>
+    <link rel="stylesheet" href="css/style.css">
+    <style>
+        .ai-showcase {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+        
+        .ai-showcase h1 {
+            text-align: center;
+            font-size: 2.5em;
+            margin-bottom: 40px;
+            background: linear-gradient(45deg, #f39c12, #e74c3c);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .ai-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 30px;
+            margin-bottom: 40px;
+        }
+        
+        .ai-card {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 30px;
+            text-align: center;
+            border: 2px solid rgba(255, 255, 255, 0.1);
+            transition: all 0.3s;
+        }
+        
+        .ai-card:hover {
+            transform: translateY(-10px);
+            border-color: rgba(243, 156, 18, 0.5);
+            box-shadow: 0 10px 40px rgba(243, 156, 18, 0.3);
+        }
+        
+        .ai-avatar {
+            font-size: 80px;
+            margin-bottom: 20px;
+        }
+        
+        .ai-name {
+            font-size: 1.8em;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        
+        .ai-style-name {
+            display: inline-block;
+            padding: 5px 15px;
+            border-radius: 15px;
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 20px;
+        }
+        
+        .ai-stats {
+            text-align: left;
+            margin-top: 20px;
+        }
+        
+        .stat-item {
+            margin-bottom: 15px;
+        }
+        
+        .stat-label {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 5px;
+            font-size: 14px;
+            color: #a0aec0;
+        }
+        
+        .stat-bar {
+            height: 8px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        
+        .stat-fill {
+            height: 100%;
+            border-radius: 4px;
+            transition: width 1s ease-out;
+        }
+        
+        .ai-description {
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            font-size: 14px;
+            color: #a0aec0;
+            line-height: 1.6;
+        }
+        
+        .back-btn {
+            display: block;
+            margin: 40px auto;
+            padding: 15px 40px;
+            font-size: 16px;
+            font-weight: 600;
+            background: linear-gradient(45deg, #f39c12, #e74c3c);
+            color: #fff;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .back-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(243, 156, 18, 0.4);
+        }
+        
+        /* AI 风格颜色 */
+        .style-aggressive { background: linear-gradient(45deg, #e74c3c, #c0392b); }
+        .style-conservative { background: linear-gradient(45deg, #27ae60, #229954); }
+        .style-random { background: linear-gradient(45deg, #f39c12, #d68910); }
+        .style-calculator { background: linear-gradient(45deg, #3498db, #2980b9); }
+        .style-caller { background: linear-gradient(45deg, #9b59b6, #8e44ad); }
+        
+        .fill-aggressive { background: linear-gradient(90deg, #e74c3c, #c0392b); }
+        .fill-conservative { background: linear-gradient(90deg, #27ae60, #229954); }
+        .fill-random { background: linear-gradient(90deg, #f39c12, #d68910); }
+        .fill-calculator { background: linear-gradient(90deg, #3498db, #2980b9); }
+        .fill-caller { background: linear-gradient(90deg, #9b59b6, #8e44ad); }
+    </style>
+</head>
+<body>
+    <div class="ai-showcase">
+        <h1>🎭 AI 玩家风格展示</h1>
+        
+        <div class="ai-grid">
+            <!-- 激进型 -->
+            <div class="ai-card">
+                <div class="ai-avatar">🦈</div>
+                <div class="ai-name">激进者</div>
+                <div class="ai-style-name style-aggressive">AGGRESSIVE</div>
+                
+                <div class="ai-stats">
+                    <div class="stat-item">
+                        <div class="stat-label">
+                            <span>风险偏好</span>
+                            <span>80%</span>
+                        </div>
+                        <div class="stat-bar">
+                            <div class="stat-fill fill-aggressive" style="width: 80%"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="stat-item">
+                        <div class="stat-label">
+                            <span>诈唬频率</span>
+                            <span>60%</span>
+                        </div>
+                        <div class="stat-bar">
+                            <div class="stat-fill fill-aggressive" style="width: 60%"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="stat-item">
+                        <div class="stat-label">
+                            <span>弃牌倾向</span>
+                            <span>30%</span>
+                        </div>
+                        <div class="stat-bar">
+                            <div class="stat-fill fill-aggressive" style="width: 30%"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="stat-item">
+                        <div class="stat-label">
+                            <span>思考时间</span>
+                            <span>500-1500ms</span>
+                        </div>
+                        <div class="stat-bar">
+                            <div class="stat-fill fill-aggressive" style="width: 40%"></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="ai-description">
+                    <strong>游戏风格：</strong>进攻性强，频繁加注，喜欢通过诈唬赢得底池。即使中等牌力也会激进下注，给对手施加巨大压力。
+                </div>
+            </div>
+            
+            <!-- 保守型 -->
+            <div class="ai-card">
+                <div class="ai-avatar">🦉</div>
+                <div class="ai-name">保守派</div>
+                <div class="ai-style-name style-conservative">CONSERVATIVE</div>
+                
+                <div class="ai-stats">
+                    <div class="stat-item">
+                        <div class="stat-label">
+                            <span>风险偏好</span>
+                            <span>30%</span>
+                        </div>
+                        <div class="stat-bar">
+                            <div class="stat-fill fill-conservative" style="width: 30%"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="stat-item">
+                        <div class="stat-label">
+                            <span>诈唬频率</span>
+                            <span>20%</span>
+                        </div>
+                        <div class="stat-bar">
+                            <div class="stat-fill fill-conservative" style="width: 20%"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="stat-item">
+                        <div class="stat-label">
+                            <span>弃牌倾向</span>
+                            <span>70%</span>
+                        </div>
+                        <div class="stat-bar">
+                            <div class="stat-fill fill-conservative" style="width: 70%"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="stat-item">
+                        <div class="stat-label">
+                            <span>思考时间</span>
+                            <span>1000-2000ms</span>
+                        </div>
+                        <div class="stat-bar">
+                            <div class="stat-fill fill-conservative" style="width: 60%"></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="ai-description">
+                    <strong>游戏风格：</strong>谨慎稳健，耐心等待好牌。只在持有强牌时下注，很少诈唬。适合长时间稳定盈利。
+                </div>
+            </div>
+            
+            <!-- 随机型 -->
+            <div class="ai-card">
+                <div class="ai-avatar">🎭</div>
+                <div class="ai-name">随机者</div>
+                <div class="ai-style-name style-random">RANDOM</div>
+                
+                <div class="ai-stats">
+                    <div class="stat-item">
+                        <div class="stat-label">
+                            <span>风险偏好</span>
+                            <span>50%</span>
+                        </div>
+                        <div class="stat-bar">
+                            <div class="stat-fill fill-random" style="width: 50%"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="stat-item">
+                        <div class="stat-label">
+                            <span>诈唬频率</span>
+                            <span>50%</span>
+                        </div>
+                        <div class="stat-bar">
+                            <div class="stat-fill fill-random" style="width: 50%"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="stat-item">
+                        <div class="stat-label">
+                            <span>弃牌倾向</span>
+                            <span>50%</span>
+                        </div>
+                        <div class="stat-bar">
+                            <div class="stat-fill fill-random" style="width: 50%"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="stat-item">
+                        <div class="stat-label">
+                            <span>思考时间</span>
+                            <span>300-2500ms</span>
+                        </div>
+                        <div class="stat-bar">
+                            <div class="stat-fill fill-random" style="width: 70%"></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="ai-description">
+                    <strong>游戏风格：</strong>完全不可预测，随机选择动作。无法通过模式识别其策略，适合扰乱对手判断。
+                </div>
+            </div>
+            
+            <!-- 计算型 -->
+            <div class="ai-card">
+                <div class="ai-avatar">🤖</div>
+                <div class="ai-name">计算师</div>
+                <div class="ai-style-name style-calculator">CALCULATOR</div>
+                
+                <div class="ai-stats">
+                    <div class="stat-item">
+                        <div class="stat-label">
+                            <span>风险偏好</span>
+                            <span>60%</span>
+                        </div>
+                        <div class="stat-bar">
+                            <div class="stat-fill fill-calculator" style="width: 60%"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="stat-item">
+                        <div class="stat-label">
+                            <span>诈唬频率</span>
+                            <span>40%</span>
+                        </div>
+                        <div class="stat-bar">
+                            <div class="stat-fill fill-calculator" style="width: 40%"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="stat-item">
+                        <div class="stat-label">
+                            <span>弃牌倾向</span>
+                            <span>50%</span>
+                        </div>
+                        <div class="stat-bar">
+                            <div class="stat-fill fill-calculator" style="width: 50%"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="stat-item">
+                        <div class="stat-label">
+                            <span>思考时间</span>
+                            <span>800-1800ms</span>
+                        </div>
+                        <div class="stat-bar">
+                            <div class="stat-fill fill-calculator" style="width: 50%"></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="ai-description">
+                    <strong>游戏风格：</strong>理性计算，基于数学期望和概率决策。计算底池赔率和手牌胜率，做出最优选择。
+                </div>
+            </div>
+            
+            <!-- 跟随型 -->
+            <div class="ai-card">
+                <div class="ai-avatar">🐑</div>
+                <div class="ai-name">跟注王</div>
+                <div class="ai-style-name style-caller">CALLER</div>
+                
+                <div class="ai-stats">
+                    <div class="stat-item">
+                        <div class="stat-label">
+                            <span>风险偏好</span>
+                            <span>40%</span>
+                        </div>
+                        <div class="stat-bar">
+                            <div class="stat-fill fill-caller" style="width: 40%"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="stat-item">
+                        <div class="stat-label">
+                            <span>诈唬频率</span>
+                            <span>10%</span>
+                        </div>
+                        <div class="stat-bar">
+                            <div class="stat-fill fill-caller" style="width: 10%"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="stat-item">
+                        <div class="stat-label">
+                            <span>弃牌倾向</span>
+                            <span>80%</span>
+                        </div>
+                        <div class="stat-bar">
+                            <div class="stat-fill fill-caller" style="width: 80%"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="stat-item">
+                        <div class="stat-label">
+                            <span>思考时间</span>
+                            <span>600-1200ms</span>
+                        </div>
+                        <div class="stat-bar">
+                            <div class="stat-fill fill-caller" style="width: 30%"></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="ai-description">
+                    <strong>游戏风格：</strong>被动跟注，倾向看牌而非下注。很少主动加注，喜欢便宜看下一张牌，容易捕捉诈唬。
+                </div>
+            </div>
+        </div>
+        
+        <button class="back-btn" onclick="window.location.href='index.html'">🎮 返回游戏</button>
+    </div>
+    
+    <script>
+        // 动画效果
+        document.addEventListener('DOMContentLoaded', function() {
+            const statFills = document.querySelectorAll('.stat-fill');
+            statFills.forEach(fill => {
+                const width = fill.style.width;
+                fill.style.width = '0';
+                setTimeout(() => {
+                    fill.style.width = width;
+                }, 300);
+            });
+        });
+    </script>
+</body>
+</html>
