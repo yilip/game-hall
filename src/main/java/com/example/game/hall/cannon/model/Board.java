@@ -114,75 +114,42 @@ public class Board {
     }
     
     public boolean isValidCapture(int fromRow, int fromCol, int toRow, int toCol, PieceType piece) {
-        System.out.println("检查吃子：from=[" + fromRow + "," + fromCol + "] to=[" + toRow + "," + toCol + "] piece=" + piece);
-        
         if (!isValidPosition(fromRow, fromCol) || !isValidPosition(toRow, toCol)) {
-            System.out.println("失败：位置无效");
             return false;
         }
         
-        // 只有大炮能吃子
         if (piece != PieceType.CANNON) {
-            System.out.println("失败：不是大炮");
             return false;
         }
         
-        // 目标位置必须有小兵
         PieceType targetPiece = board[toRow][toCol];
-        System.out.println("目标位置棋子：" + targetPiece);
         if (targetPiece != PieceType.SOLDIER) {
-            System.out.println("失败：目标位置没有小兵");
             return false;
         }
         
-        // 检查是否在同一直线上
         int rowDiff = toRow - fromRow;
         int colDiff = toCol - fromCol;
-        System.out.println("rowDiff=" + rowDiff + " colDiff=" + colDiff);
         
-        // 必须是直线移动（横向或纵向）
         if (rowDiff != 0 && colDiff != 0) {
-            System.out.println("失败：不是直线移动");
             return false;
         }
         
-        // 检查是否隔一个格子
         if (rowDiff != 0) {
-            // 纵向移动
             int absRowDiff = Math.abs(rowDiff);
-            System.out.println("纵向移动，距离=" + absRowDiff);
             if (absRowDiff != 2) {
-                System.out.println("失败：距离不是 2");
                 return false;
             }
-            // 检查中间是否为空（大炮隔一个空格吃小兵）
             int midRow = fromRow + rowDiff / 2;
             PieceType midPiece = board[midRow][fromCol];
-            System.out.println("中间位置 [" + midRow + "," + fromCol + "] 棋子：" + midPiece);
-            if (midPiece != PieceType.EMPTY) {
-                System.out.println("失败：中间有障碍物，无法跳过");
-                return false;
-            }
-            System.out.println("吃子验证成功！");
-            return true;
+            return midPiece == PieceType.EMPTY;
         } else {
-            // 横向移动
             int absColDiff = Math.abs(colDiff);
-            System.out.println("横向移动，距离=" + absColDiff);
             if (absColDiff != 2) {
-                System.out.println("失败：距离不是 2");
                 return false;
             }
-            // 检查中间是否为空（大炮隔一个空格吃小兵）
             int midCol = fromCol + colDiff / 2;
             PieceType midPiece = board[fromRow][midCol];
-            System.out.println("中间位置 [" + fromRow + "," + midCol + "] 棋子：" + midPiece);
-            if (midPiece != PieceType.EMPTY) {
-                System.out.println("失败：中间有障碍物，无法跳过");
-                return false;
-            }
-            System.out.println("吃子验证成功！");
-            return true;
+            return midPiece == PieceType.EMPTY;
         }
     }
     
