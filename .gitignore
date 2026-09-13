@@ -20,3 +20,7 @@ Thumbs.db
 
 # Session / agent memory (local only, not project source)
 .workbuddy/
+
+# Validation scratch output (tools/ harness keeps real scripts only)
+tools/_*.txt
+tools/.tmp-*.js
