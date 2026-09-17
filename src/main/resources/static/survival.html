@@ -147,6 +147,8 @@ button{font-family:inherit}
 .tile .you{position:absolute;bottom:2px;right:2px;width:17px;height:17px;border-radius:50%;background:#2ecc71;border:2px solid #fff;box-shadow:0 0 9px rgba(46,204,113,.95);display:flex;align-items:center;justify-content:center;font-size:10px;line-height:1;z-index:6;animation:herePulse 1.5s ease-in-out infinite}
 .tile.shop{border-color:#feca57 !important;box-shadow:0 0 0 2px rgba(254,202,87,.55), 0 0 14px rgba(254,202,87,.5) !important;z-index:3}
 .tile.shop::before{content:'⛺';position:absolute;top:1px;left:2px;font-size:12px;line-height:1;filter:drop-shadow(0 1px 2px rgba(0,0,0,.85));z-index:5}
+.tile.den{border-color:rgba(255,107,107,.7) !important;box-shadow:inset 0 0 14px rgba(255,71,87,.4)}
+.tile.den::before{content:'🩸';position:absolute;top:1px;left:2px;font-size:12px;line-height:1;filter:drop-shadow(0 1px 2px rgba(0,0,0,.85));z-index:5}
 .tile.richmark::after{content:'';position:absolute;top:3px;right:3px;width:0;height:0;border-left:9px solid transparent;border-top:9px solid #feca57;opacity:.85}
 .tipbar{
   display:flex;align-items:center;gap:10px;padding:8px 10px;margin-bottom:8px;border-radius:9px;
@@ -265,6 +267,8 @@ button{font-family:inherit}
   position:fixed;inset:0;z-index:200;display:flex;flex-direction:column;align-items:center;justify-content:center;
   padding:24px;overflow-y:auto;
 }
+/* 战斗 / 结算必须压在弹窗之上：否则商店开着时遇袭，战斗界面被盖住点不动 */
+#fightScreen,#endingScreen{z-index:340}
 .screen.hidden{display:none}
 #startScreen{background:radial-gradient(ellipse at 50% 25%,rgba(26,64,32,.75) 0%,transparent 62%),linear-gradient(180deg,#0d1a0f,#060d09)}
 #fightScreen{background:radial-gradient(ellipse at 50% 25%,rgba(58,10,10,.8) 0%,transparent 62%),linear-gradient(180deg,#150808,#080303)}
@@ -411,6 +415,7 @@ button{font-family:inherit}
     收集资源 · 建造营地 · 探索迷雾 · 击退野兽 · 修复信号塔，逃离这座岛。
   </p>
   <div class="diff-grid" id="diffGrid"></div>
+  <div class="daily-board" id="metaPanel"></div>
   <div class="daily-board" id="dailyBoard"></div>
   <div class="screen-actions">
     <button class="btn primary" id="btnNew" style="padding:14px 40px;font-size:16px">开始求生</button>
@@ -461,6 +466,7 @@ button{font-family:inherit}
   <div class="hud-day">Day <span id="dayCount">1</span></div>
   <div class="hud-chips">
     <span class="chip" id="timeChip">☀️ 白天</span>
+    <span class="chip" id="apChip">⏳ 余 6 行动</span>
     <span class="chip" id="seasonChip">🌸 春季</span>
     <span class="chip" id="weatherChip">☀️ 晴天</span>
     <span class="chip" id="tempChip">🌡️ 37°C</span>
@@ -546,6 +552,7 @@ button{font-family:inherit}
       </div>
       <div class="site-desc" id="siteDesc">你醒来时躺在一片温暖的海滩上。</div>
       <div class="act-row" id="siteActions"></div>
+      <div class="quick-tabs" id="quickTabs"></div>
     </div>
   </div>
 
@@ -685,6 +692,36 @@ var ENEMIES = [
    loot:{iron:8,silver:4,scale:2}, desc:'火山深处的远古存在，浑身流淌着岩浆。', tip:'蓄力与灼烧并行——备足药品再挑战。'}
 ];
 
+/* ---------------- 栖息地 ----------------
+   敌人不再全岛均匀刷：想打谁就得去谁家。遇敌池、巢穴标记、图鉴「去哪里找」共用这张表。 */
+var HABITAT = {
+  wolf:  ['forest','plain'],  snake:['swamp','forest'],
+  boar:  ['forest','plain'],  spider:['cave','swamp'],
+  bear:  ['mountain','cave'], lizard:['swamp','river'],
+  undead:['ruins'],          golem:['volcano']
+};
+ENEMIES.forEach(function(e){ e.habitat = HABITAT[e.id] || []; });
+function enemyById(id){ return ENEMIES.filter(function(e){ return e.id===id; })[0] || null; }
+function habitatNames(e){
+  return (e.habitat||[]).map(function(t){ return TERRAIN[t] ? TERRAIN[t].name : t; }).join(' / ');
+}
+/* 一种物资到底从哪来：地形采集 / 野兽掉落 / 商人出售。
+   生肉、皮革这类根本采不到，只能猎——这条隐性规则必须能在界面上查到。 */
+function resourceSources(item){
+  var terr = [], hunt = [], shop = false;
+  for(var k in TERRAIN){ if(TERRAIN[k].gather.indexOf(item)>=0) terr.push(TERRAIN[k].name); }
+  ENEMIES.forEach(function(e){ if(e.loot && e.loot[item]) hunt.push(e.name+'（'+habitatNames(e)+'）'); });
+  SHOP_STOCK.forEach(function(s){ if(s.item===item) shop = true; });
+  return {terrain:terr, hunt:hunt, shop:shop};
+}
+function sourceHint(item){
+  var s = resourceSources(item), a = [];
+  if(s.terrain.length) a.push('采集：'+s.terrain.join('/'));
+  if(s.hunt.length) a.push('猎杀：'+s.hunt.join('、'));
+  if(s.shop) a.push('商人出售');
+  return a.join('　·　');
+}
+
 /* ---------------- 状态效果 ---------------- */
 var STATUS_DEF = {
   poison:{name:'中毒', icon:'🧪', bad:1, desc:'每回合损失 3 点生命'},
@@ -699,7 +736,7 @@ var STATUS_DEF = {
 /* ---------------- 科技：基础 + 四条专精分支（只能选一条） ---------------- */
 var TECH_BASE = [
   {id:'stone', name:'石器使用', cost:0, detail:'解锁基础采集与制作'},
-  {id:'gatherEff', name:'高效采集', cost:10, detail:'采集冷却减半，每次采集额外 +1 产量'}
+  {id:'gatherEff', name:'高效采集', cost:10, detail:'每次采集额外 +1 产量，且采集少花 1 行动点'}
 ];
 var BRANCHES = {
   hunter:{name:'猎人', icon:'🏹', desc:'狩猎与远程，遇敌更强更富',
@@ -748,13 +785,13 @@ var RECIPES = [
   {id:'r_cookMeat', name:'熟肉',   icon:'🍗', out:'cookedMeat', cost:{meat:1,wood:1}, food:42},
   {id:'r_soup',     name:'肉汤',   icon:'🍲', out:'cookedMeat', cost:{meat:1,water:1,herb:1}, food:50, rthirst:10, heal:12},
   {id:'r_tea',      name:'草药茶', icon:'🍵', out:'medicine',   cost:{herb:2,water:1}, heal:22, rthirst:8, needTech:'herb'},
-  {id:'r_dryMeat',  name:'晾晒肉干',icon:'🥓',out:'driedMeat',  cost:{meat:2}, out2:2, needBuild:'rack'}
+  {id:'r_dryMeat',  name:'晾晒肉干',icon:'🥓',out:'driedMeat',  cost:{meat:2}, needBuild:'rack'}
 ];
 
 /* ---------------- 套装 ---------------- */
 var SETS = [
   {name:'皮革套装', cost:{leather:3,fiber:2},  def:5,  desc:'防御 +5'},
-  {name:'猎人套装', cost:{leather:4,herb:3},   def:8,  desc:'防御 +8，采集 +1'},
+  {name:'猎人套装', cost:{leather:4,herb:3},   def:8, gather:1, desc:'防御 +8，采集 +1'},
   {name:'铁甲',     cost:{iron:5,leather:2},   def:12, desc:'防御 +12', needTech:'smelt'},
   {name:'远古铠甲', cost:{iron:8,leather:4,silver:3}, def:20, desc:'防御 +20', needTech:'smelt'}
 ];
@@ -790,7 +827,7 @@ var EVENTS = [
    ]},
   {title:'🗺️ 前人遗物', desc:'一具白骨旁散落着生前的行囊。',
    choices:[
-     {text:'🎒 翻找行囊', fn:function(){ var n=rng(3,6); addRes('wood',n); addRes('fiber',n); if(Math.random()<.4) addRes('coin',rng(5,15));
+     {text:'🎒 翻找行囊', fn:function(){ var n=rng(3,6); addRes('wood',n); addRes('fiber',n); if(grnd()<.4) addRes('coin',rng(5,15));
        log('你从行囊里翻出了一些物资。','good'); }},
      {text:'⚰️ 让他安息 (-5 体力)', fn:function(){ G.energy-=5; G.health=Math.min(G.maxHealth,G.health+10); log('你埋葬了他，心里踏实了一些。','good'); }}
    ]},
@@ -805,7 +842,7 @@ var EVENTS = [
    ]},
   {title:'🍄 可疑的蘑菇', desc:'一丛颜色鲜艳的蘑菇长在树根旁。',
    choices:[
-     {text:'🍄 吃掉它',   fn:function(){ if(Math.random()<.55){ G.health=Math.min(G.maxHealth,G.health+20); log('味道不错，你感觉好多了。','good'); }
+     {text:'🍄 吃掉它',   fn:function(){ if(grnd()<.55){ G.health=Math.min(G.maxHealth,G.health+20); log('味道不错，你感觉好多了。','good'); }
        else { G.health-=12; addStatus('poison',2); log('有毒！你中毒了。','bad'); } }},
      {text:'🚶 不予理会', fn:function(){ log('你不去碰它。','info'); }}
    ]},
@@ -819,11 +856,11 @@ var EVENTS = [
    choices:[
      {text:'🎒 搜刮残骸（木材·纤维·金币）', fn:function(){
         addRes('wood',rng(3,6)); addRes('fiber',rng(2,4));
-        if(Math.random()<.5){ var c=rng(10,25); addRes('coin',c); }
+        if(grnd()<.5){ var c=rng(10,25); addRes('coin',c); }
         log('你从沉船上扒下了不少好东西。','good'); }},
      {text:'🌊 潜入船舱深处（高风险高回报）', fn:function(){
-        if(Math.random()<.5){ addRes('iron',rng(3,5)); addRes('coin',rng(25,45)); log('你在船舱深处找到了一箱补给！','good'); }
-        else { log('船舱深处有什么东西动了——','fight'); startFight(pick(enemyPool()), false); } }}
+        if(grnd()<.5){ addRes('iron',rng(3,5)); addRes('coin',rng(25,45)); log('你在船舱深处找到了一箱补给！','good'); }
+        else { log('船舱深处有什么东西动了——','fight'); startFight(rollEnemy(hereTerrain()), false); } }}
    ]},
   {title:'🖼️ 洞穴壁画', desc:'岩壁上画着奇怪的图案：一座高塔、一群人，还有一艘正在离去的船。',
    choices:[
@@ -866,19 +903,20 @@ function eventByTitle(t){
   for(var i=0;i<EVENTS.length;i++) if(EVENTS[i].title===t) return EVENTS[i];
   return null;
 }
-/* 选下一个事件：45% 概率推进一条未完成的链，否则随机 */
+/* 选下一个事件：按概率优先推进一条未完成的链，否则随机。
+   返回 {evt, chain} —— 链条信息随事件一起下发，避免在共享的 EVENTS 对象上留脏状态 */
 function pickEvent(){
-  if(Math.random() < BAL.progress.chainEventChance){
+  if(grnd() < BAL.progress.chainEventChance){
     var open = [];
     for(var i=0;i<CHAINS.length;i++){ if((G.chains[CHAINS[i].id]||0) < CHAINS[i].steps.length) open.push(CHAINS[i]); }
     if(open.length){
-      var c = open[Math.floor(Math.random()*open.length)];
+      var c = open[Math.floor(grnd()*open.length)];
       var st = G.chains[c.id]||0;
       var e = eventByTitle(c.steps[st].t);
-      if(e){ e._chain = c; return e; }
+      if(e) return {evt:e, chain:c};
     }
   }
-  return pick(EVENTS);
+  return {evt:pick(EVENTS), chain:null};
 }
 function completeChain(c){
   if(!G.chainDone) G.chainDone = {};
@@ -901,13 +939,31 @@ function completeChain(c){
   }, 300);
 }
 
-/* ---------------- 武器词条（每次升级随机获得） ---------------- */
+/* ---------------- 武器词条（多槽构筑：打造只填空槽，绝不覆盖旧词条） ---------------- */
 var AFFIXES = [
-  {id:'crit',  name:'锋利', desc:'暴击率 +8%'},
-  {id:'leech', name:'嗜血', desc:'攻击回复 20% 伤害'},
-  {id:'heavy', name:'沉重', desc:'伤害 +15%'},
-  {id:'swift', name:'迅捷', desc:'受击额外 +5 怒气'}
+  {id:'crit',  name:'锋利', desc:'暴击率 +8%，且暴击时额外积蓄怒气'},
+  {id:'leech', name:'嗜血', desc:'攻击回复 20% 伤害（猎人路线 +50% 回复量）'},
+  {id:'heavy', name:'沉重', desc:'伤害 +15%，对正在蓄力的敌人再 +30%'},
+  {id:'swift', name:'迅捷', desc:'受击额外 +5 怒气；怒气够放特殊时，下次攻击必定暴击'}
 ];
+/* 套装 × 专精路线 的协同：让「选哪条线」和「穿哪套」互相咬合，而不是各自加常数 */
+var SYNERGY = [
+  {set:'皮革套装', branch:'hunter', rage:6,  note:'猎人着轻皮：攻击/受击额外 +6 怒气'},
+  {set:'猎人套装', branch:'farmer', gather:1, note:'农夫穿猎装：每次采集额外 +1'},
+  {set:'铁甲',     branch:'smith',  atk:2,   note:'工匠着铁甲：攻击 +2'},
+  {set:'远古铠甲', branch:'healer', regen:3, note:'医者披远古铠：白天自然回血 +3'}
+];
+function hasAffix(id){
+  var a = G.affixes || [];
+  for(var i=0;i<a.length;i++) if(a[i] && a[i].id===id) return true;
+  return false;
+}
+function syn(){
+  var s = (G.equipSet>=0 && SETS[G.equipSet]) ? SETS[G.equipSet].name : null;
+  if(!s || !G.branch) return {};
+  for(var i=0;i<SYNERGY.length;i++) if(SYNERGY[i].set===s && SYNERGY[i].branch===G.branch) return SYNERGY[i];
+  return {};
+}
 
 /* ---------------- 灾变事件（每 7 天，前一天预警，均有应对选项） ---------------- */
 var CRISES = [
@@ -927,10 +983,8 @@ var CRISES = [
    desc:'一群饥饿的野兽循着血腥味朝营地逼近，眼睛在暗处发亮。',
    choices:[
      {text:'⚔️ 迎战头兽（胜利可获得战利品）', fn:function(){
-        var maxTier = clamp(Math.floor(G.day/BAL.progress.enemyTierDayDiv), 0, BAL.progress.enemyTierMax);
-        var pool = ENEMIES.filter(function(e){ return e.tier<=maxTier; });
         log('🐗 你握紧武器，迎着兽潮冲了上去！','fight');
-        startFight(pick(pool), true); }},
+        startFight(rollEnemy(hereTerrain()), true); }},
      {text:'🏃 放弃物资撤退（-20% 资源 -15 体力）', fn:function(){
         for(var k in G.res){ if(k!=='coin'&&G.res[k]>0){ G.res[k]-=Math.ceil(G.res[k]*0.2); } }
         G.energy=Math.max(0,G.energy-15);
@@ -992,7 +1046,7 @@ var SHELTER_LEVELS = [
   {name:'豪华居所', desc:'岛上的宫殿，最大程度的保护。'}
 ];
 var SHELTER_COST = [
-  {wood:5,  stone:3},
+  {wood:5,  fiber:4},
   {wood:12, stone:8},
   {wood:20, stone:16},
   {wood:32, stone:26},
@@ -1038,25 +1092,30 @@ var SHOP_STOCK = [
 
 /* =========================================================================
    数值平衡表 BAL
-   —— 所有「消耗 / 伤害 / 成长 / 节奏」类数值集中在这里，调参只改这一张表。
-   —— 表内默认值 = 外置前代码里的硬编码值，因此抽取后行为完全不变。
-   —— 蒙特卡洛脚本（tools/balance-sim.js）直接覆写本表做批量回归。
+   —— 所有「消耗 / 伤害 / 成长 / 节奏 / 行动耗时」类数值集中在这里，调参只改这一张表。
+   —— 无头模拟脚本（tools/sim.js）直接覆写本表做批量回归与参数扫描。
    ========================================================================= */
 var BAL = {
-  version: 1,
+  version: 2,
   time:{
-    tickMs:8000,      // 每个时段的真实时长（毫秒）
-    phases:3,         // 每天时段数：0 白天 / 1 夜晚 / 2 深夜（血月）
-    walkStepMs:120,   // 自动寻路每格步进间隔
+    phases:3,          // 每天时段数：0 白天 / 1 夜晚 / 2 深夜
+    apPerPhase:6,      // 推进一个时段需要的行动点（时间由行为驱动，不再走真实秒表）
+    walkStepMs:120,    // 自动寻路每格步进间隔（纯动画）
     minTemp:18, maxTemp:46, warmTemp:34, warmTurns:3
+  },
+  /* 行动的「时间价目表」——单位=行动点 AP，1 时段 = apPerPhase AP，1 天 = phases 时段。
+     吃饭/喝水/用药是即时反应，不占时间。 */
+  cost:{
+    move:1, moveUnknown:2, gather:2, explore:3, travel:6,
+    craft:3, build:6, cook:1, cookAll:3, trade:1, quest:2, hunt:3, wait:6
   },
   drain:{            // 每时段基础消耗
     hunger:3, thirst:4,
     shelterReliefPerLv:0.09,  // 每层庇护所减少的消耗比例
     warmMul:0.85,             // 「温暖」状态下的消耗系数
     energyNight:2,
-    tempBase:37, tempShelterPerLv:0.8, tempCampfire:5, tempColdEnv:-8,
-    coldThreshold:26, coldDmg:3,
+    tempBase:37, tempShelterPerLv:1.2, tempCampfire:5, tempColdEnv:-8,
+    coldThreshold:26, coldDmg:2,
     heatThreshold:42, heatThirst:5,
     starveDmg:5, thirstDmg:8,
     regenBase:3, regenPerShelterLv:2, regenFed:2, regenMinStat:35,
@@ -1067,14 +1126,15 @@ var BAL = {
     energy:5, hunger:2, thirst:2,
     qtyMin:1, qtyMax:2, richBonus:2, effBonus:1,
     gather2Mul:2, fishingMul:1.5,
-    cd:2, cdEff:1, techPoint:1,
+    techPoint:1,
     mossChance:0.3, scaleChance:0.25
   },
   explore:{ energy:8, radius:2, techPoint:1, ambushMul:1.2 },
   move:{ costKnown:3, costUnknown:6, ambushMulUnknown:1.3 },
-  ambush:{ nightAdd:0.10, bloodAdd:0.30, campfireMul:0.7, trackingMul:0.7, min:0, max:0.8 },
+  ambush:{ nightAdd:0.10, bloodAdd:0.30, campfireMul:0.7, trackingMul:0.7, localWeight:2, min:0, max:0.8 },
   combat:{
-    critBase:0.12, critAffix:0.08, critMul:1.8,
+    critBase:0.12, critAffix:0.08, critMul:1.8, critRageBonus:15,
+    leechHunterMul:1.5, heavyChargeMul:1.3,
     dmgJitterMin:0.9, dmgJitterSpan:0.2,
     heavyAffixMul:1.15, leechRatio:0.2,
     ragePerAttack:12, ragePerCrit:18, ragePerDefend:10,
@@ -1109,7 +1169,8 @@ var BAL = {
     armorFiberBase:3, armorFiberPerLv:2, armorLeatherDiv:2,
     forgeMul:1.5, chefMul:2, archCostMul:0.8,
     shelterEnergy:10, shelterMaxBase:3, shelterMaxArch:5,
-    batchCookLimit:8
+    batchCookLimit:8,
+    affixSlots:3, reforgeIron:2, reforgeCoin:15
   },
   economy:{ sellBase:6, sellFlat:4 },
   build:{ rainWater:2 },
@@ -1117,13 +1178,18 @@ var BAL = {
 };
 
 /* ---------------- 工具 ---------------- */
-function rng(a,b){ return Math.floor(Math.random()*(b-a+1))+a; }
-function pick(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
+/* 游戏随机流：默认 Math.random，开局/读档时由 seedRng() 换成可播种流，
+   使每日挑战的天气、遇敌、事件、暴击、掉落对所有玩家一致（纯表现层抖动不用它）。*/
+var _grnd = Math.random;
+function grnd(){ return _grnd(); }
+function seedRng(s){ _grnd = mulberry32(s>>>0); }
+function rng(a,b){ return Math.floor(grnd()*(b-a+1))+a; }
+function pick(arr){ return arr[Math.floor(grnd()*arr.length)]; }
 function clamp(v,lo,hi){ return Math.max(lo,Math.min(hi,v)); }
 function $(id){ return document.getElementById(id); }
 function weightedPick(table, rand){ // table: [[val,weight],...]
   var total=0, i; for(i=0;i<table.length;i++) total+=table[i][1];
-  var r=(rand?rand():Math.random())*total, acc=0;
+  var r=(rand?rand():grnd())*total, acc=0;
   for(i=0;i<table.length;i++){ acc+=table[i][1]; if(r<=acc) return table[i][0]; }
   return table[table.length-1][0];
 }
@@ -1151,10 +1217,12 @@ function dailyList(key){
   var b = dailyBoard();
   return b[key||todayKey()] || [];
 }
-/* 排序规则：通关优先 → 天数越少越好 → 时间早的在前 */
+/* 排序规则：通关优先 → 通关用时越少越好 / 未通关活得越久越好 → 时间早的在前 */
 function dailySort(list){
   list.sort(function(a,b){
-    return (b.win?1:0)-(a.win?1:0) || a.day-b.day || (a.ts||0)-(b.ts||0);
+    if(!!a.win !== !!b.win) return a.win ? -1 : 1;
+    var dd = a.win ? (a.day-b.day) : (b.day-a.day);
+    return dd || ((a.ts||0)-(b.ts||0));
   });
   return list;
 }
@@ -1174,7 +1242,7 @@ function renderDailyBoard(){
   var list = dailyList();
   var head = '<div class="db-title">📅 每日挑战 · 今日种子 '+seed+'<small>'+todayKey()+' · 本地记录</small></div>';
   if(!list.length){
-    box.innerHTML = head + '<div class="db-empty">今天还没有成绩。每日挑战使用固定地图种子，全世界的玩家拿到的是同一张岛——来跑一局，看看你能活到第几天。</div>';
+    box.innerHTML = head + '<div class="db-empty">今天还没有成绩。每日挑战使用固定种子：同一张岛、同一套天气与遭遇表——来跑一局，看看你能活到第几天。</div>';
     return;
   }
   var rows = list.slice(0,5).map(function(r, i){
@@ -1189,6 +1257,37 @@ function renderDailyBoard(){
   box.innerHTML = head + rows;
 }
 
+/* ---------------- 跨局元进度（单局存档会被清，这个不会） ---------------- */
+var META_KEY = 'wildsurvive_meta_v1';
+function metaGet(){
+  try{ var m = JSON.parse(localStorage.getItem(META_KEY)||'{}'); return (m && typeof m==='object') ? m : {}; }
+  catch(e){ return {}; }
+}
+function metaSet(m){ try{ localStorage.setItem(META_KEY, JSON.stringify(m)); }catch(e){} }
+function metaMerge(res){
+  var m = metaGet();
+  m.runs = (m.runs||0) + 1;
+  if(res.win){ m.wins = (m.wins||0)+1; m.escaped = true; if(!m.bestWinDay || res.day < m.bestWinDay) m.bestWinDay = res.day; }
+  m.bestDays = Math.max(m.bestDays||0, res.day);
+  m.totalKills = (m.totalKills||0) + (res.kills||0);
+  m.totalElite = (m.totalElite||0) + (res.elite||0);
+  m.codex = m.codex || {res:{}, enemy:{}};
+  for(var k in ((G.codex||{}).res||{})) m.codex.res[k] = 1;
+  for(var e in ((G.codex||{}).enemy||{})) m.codex.enemy[e] = 1;
+  m.achv = m.achv || {};
+  for(var a in (G.achv||{})) m.achv[a] = 1;
+  m.chains = m.chains || {};
+  for(var c in (G.chainDone||{})) m.chains[c] = 1;
+  if(res.win && res.kind){ m.endings = m.endings || {}; m.endings[res.kind] = 1; }
+  if(res.rating){ m.ratings = m.ratings || {}; m.ratings[res.rating] = (m.ratings[res.rating]||0)+1; }
+  metaSet(m);
+  return m;
+}
+function codexTotal(){ var m = metaGet(), c = m.codex||{}; return Object.keys(c.res||{}).length + Object.keys(c.enemy||{}).length; }
+function achvTotal(){ return Object.keys((metaGet().achv)||{}).length; }
+function endingsTotal(){ return Object.keys((metaGet().endings)||{}).length; }
+function hardUnlocked(){ return !!metaGet().escaped; }
+
 function initGame(diffKey, seed){
   var diff = DIFFICULTY[diffKey] ? diffKey : 'normal';
   G = {
@@ -1198,23 +1297,24 @@ function initGame(diffKey, seed){
     health: 100, maxHealth: 100, hunger: 100, thirst: 100, energy: 100,
     attack: 10, weaponLevel: 0, armorLevel: 0, equipSet: -1, defense: 0,
     shelterLevel: 0, techPoints: 0, tech: {stone:true}, branch: null,
-    res: {}, spoil: {meat:0, fish:0},
+    res: {}, spoilQ: {},
     build: {storage:0, rack:0, rain:0, campfire:0, fence:0},
     cur: 'beach', zones: {}, unlocked: {beach:true, forest:true, camp:true}, entered: {},
     view: 'world', zoom: 1, panX: 0, panY: 0,
     status: [],
     quest: {idx:0, prog:0, done:false},
-    stats: {kills:0, killsBy:{}, crafted:0, cooked:0, gathered:0, steps:0, fought:{}, shops:0, events:0},
+    stats: {kills:0, killsBy:{}, crafted:0, cooked:0, gathered:0, spoiled:0, steps:0, fought:{}, shops:0, events:0},
     achv: {}, codex: {res:{}, enemy:{}}, shopBuy: {},
     bloodWarn: false, ending: false,
     rage: 0, crisisPending: false, envMod: null, zoneCleared: 0, lastCrisis: null,
     tut: true, pendingCrisis: null,
-    affix: null, affinity: 0, lore: {}, eliteKills: 0,
+    affixes: [], affinity: 0, lore: {}, eliteKills: 0,
     chains: {A:0, B:0, C:0}, chainDone: {},
-    tw: 0, tday: 1, tseason: 0, tweather: 0,
     log: [],
-    fight: null, gatherCd: 0
+    ap: 0, ambushPhase: false,
+    fight: null
   };
+  seedRng(G.seed);
   var st = DIFFICULTY[diff].start;
   for(var k in st) G.res[k] = st[k];
   G.zones.beach = makeZone('beach');
@@ -1412,6 +1512,13 @@ function normalizeField(arr){
   for(i=0;i<arr.length;i++) arr[i] = (arr[i]-mn)/span;
   return arr;
 }
+/* 本区域主地形上常驻的最强猎手——用来生成巢穴 */
+function denEnemyFor(terrain){
+  var pool = ENEMIES.filter(function(e){ return (e.habitat||[]).indexOf(terrain) >= 0; });
+  if(!pool.length) return null;
+  pool.sort(function(a,b){ return b.tier - a.tier; });
+  return pool[0];
+}
 function makeZone(rid){
   var R = REGION_BY_ID[rid];
   var seed = (hashStr(rid) ^ (G.seed||0)) >>> 0;
@@ -1443,6 +1550,17 @@ function makeZone(rid){
   if(z.shopIdx === undefined && rnd() < 0.6){
     var si = Math.floor(rnd()*tiles.length);
     if(si !== z.poiIdx) z.shopIdx = si;
+  }
+  // 巢穴：本区最凶的猎手常驻，给玩家一个「我主动去打」的固定坐标
+  var den = R.poi ? null : denEnemyFor(R.terrain);
+  if(den){
+    var di, tries = 0;
+    do { di = Math.floor(rnd()*tiles.length); tries++; }
+    while(tries < 40 && (di === z.poiIdx || di === z.shopIdx ||
+           tiles[di].t === 'camp' || tiles[di].t === 'tower'));
+    if(di !== z.poiIdx && di !== z.shopIdx && tiles[di].t!=='camp' && tiles[di].t!=='tower'){
+      z.denIdx = di; z.denId = den.id;
+    }
   }
   return z;
 }
@@ -1501,7 +1619,7 @@ function enterRegion(rid){
     log('↩️ 你回到了'+R.name+'。','info');
   }
   G.view = 'zone';
-  updateUI();
+  advance(BAL.cost.travel);
 }
 function showWorld(){
   if(G.fight||G.ending) return;
@@ -1530,18 +1648,44 @@ function weightOf(){
 }
 function isOverweight(){ return weightOf() >= capacity(); }
 
+/* ---------------- 腐坏：按批次 FIFO ----------------
+   旧实现每次入包都把整堆的剩余天数重置满，等于「每隔三天捡一条鱼，生鲜永远不坏」。
+   现在每个批次自带剩余天数，消耗时优先消耗最旧的一批。 */
+function spoilBatches(item){
+  if(!G.spoilQ) G.spoilQ = {};
+  if(!G.spoilQ[item]) G.spoilQ[item] = [];
+  return G.spoilQ[item];
+}
+function spoilAge(item){                         // 最早一批还剩几天
+  var R = RESOURCES[item];
+  if(!R || !R.perish) return 0;
+  var q = spoilBatches(item);
+  return q.length ? q[0].d : R.perish;
+}
+function syncSpoil(item){                        // 批次总量对齐到实际持有量
+  var R = RESOURCES[item]; if(!R || !R.perish) return;
+  var q = spoilBatches(item), have = Math.max(0, G.res[item]||0), sum = 0;
+  q.forEach(function(b){ sum += b.n; });
+  while(sum > have && q.length){
+    var over = sum - have, f = q[0];
+    if(f.n <= over){ sum -= f.n; q.shift(); }
+    else { f.n -= over; sum = have; }
+  }
+  if(sum < have) q.push({n:have-sum, d:R.perish});
+}
+/* 负重允许的前提下，该物资现在还能装下几件 */
+function fitCount(item, n){
+  var R = RESOURCES[item]; if(!R || n<=0) return 0;
+  if(R.w<=0) return n;
+  return Math.max(0, Math.min(n, Math.floor((capacity()-weightOf()) / R.w + 1e-6)));
+}
+
 function addRes(item, n){
   if(!RESOURCES[item] || n<=0) return 0;
-  var w = RESOURCES[item].w;
-  var added = n;
-  if(w>0){
-    var room = capacity() - weightOf();
-    var can = Math.floor(room / w + 1e-6);
-    added = Math.max(0, Math.min(n, can));
-  }
+  var added = fitCount(item, n);
   if(added<=0){ warnOnce('背包已满，无法携带更多'+RESOURCES[item].name+'！'); return 0; }
   G.res[item] = (G.res[item]||0) + added;
-  if(RESOURCES[item].perish) G.spoil[item] = RESOURCES[item].perish;
+  if(RESOURCES[item].perish) spoilBatches(item).push({n:added, d:RESOURCES[item].perish});
   codexUnlock('res', item);
   return added;
 }
@@ -1571,7 +1715,7 @@ function addStatus(name, turns){
 function hasStatus(name){ return G.status.some(function(s){ return s.name===name; }); }
 
 /* ---------------- 存档 ---------------- */
-var SAVE_KEY = 'wildsurvive_v2';
+var SAVE_KEY = 'wildsurvive_v3';
 function saveGame(silent){
   try{
     localStorage.setItem(SAVE_KEY, JSON.stringify(G));
@@ -1579,18 +1723,25 @@ function saveGame(silent){
     return true;
   }catch(e){ if(!silent) toast('保存失败：存储空间不可用'); return false; }
 }
-function hasSave(){
-  try{ return !!localStorage.getItem(SAVE_KEY); }catch(e){ return false; }
-}
-function loadSave(){
+/* 存档必须是「还在打」的局：已结算的档读回来只会得到一个点不动的死局 */
+function savePayload(){
   try{
     var raw = localStorage.getItem(SAVE_KEY);
-    if(!raw) return false;
+    if(!raw) return null;
     var d = JSON.parse(raw);
-    if(!d || !d.zones) return false;
+    if(!d || !d.zones) return null;
+    if(d.ending || d.endingDone) return null;
+    return d;
+  }catch(e){ return null; }
+}
+function hasSave(){ return !!savePayload(); }
+function loadSave(){
+  var d = savePayload();
+  if(!d) return false;
+  try{
     G = d;
     if(!G.status) G.status=[];
-    if(!G.spoil) G.spoil={meat:0,fish:0};
+    if(!G.spoilQ) G.spoilQ={};
     if(!G.tech) G.tech={stone:true};
     if(!G.unlocked) G.unlocked={beach:true,forest:true,camp:true};
     if(!G.entered) G.entered={};
@@ -1602,34 +1753,53 @@ function loadSave(){
     if(typeof G.rage!=='number') G.rage = 0;
     if(typeof G.zoneCleared!=='number') G.zoneCleared = 0;
     if(typeof G.tut!=='boolean') G.tut = true;
-    if(!G.affix) G.affix = null;
+    if(!G.affixes) G.affixes = G.affix ? [G.affix] : [];
+    if(G.affixes.length > BAL.craft.affixSlots) G.affixes = G.affixes.slice(0, BAL.craft.affixSlots);
+    delete G.affix;
     if(typeof G.affinity!=='number') G.affinity = 0;
     if(!G.lore) G.lore = {};
     if(typeof G.eliteKills!=='number') G.eliteKills = 0;
     if(!G.chains) G.chains = {A:0,B:0,C:0};
     CHAINS.forEach(function(c){ if(typeof G.chains[c.id]!=='number') G.chains[c.id]=0; });
     if(!G.chainDone) G.chainDone = {};
+    if(!G.stats) G.stats = {kills:0, killsBy:{}, crafted:0, cooked:0, gathered:0, steps:0, fought:{}, shops:0, events:0};
+    seedRng((G.seed ^ hashStr('r'+G.day+'.'+G.timeOfDay)) >>> 0);
     return true;
   }catch(e){ return false; }
 }
 function clearSave(){ try{ localStorage.removeItem(SAVE_KEY); }catch(e){} }
 
-/* ---------------- 时间流转 ---------------- */
-function gameTick(){
-  if(G.ending) return;
-  if(G.fight) return;
+/* ---------------- 时间流转：由玩家行为推进，不再走真实秒表 ----------------
+   旧实现是 setInterval 每 8 秒强制走一格，而玩家做任何事都不花时间——
+   于是「唯一的成本是等」，资源却全都无限可再生。现在时间按行动点(AP)结算。 */
+function isBloodMoonNight(){ return G.timeOfDay === BAL.time.phases-1 && G.day % BAL.progress.bloodMoonEvery === 0; }
+function stepPhase(){
+  if(G.ending) return false;
+  if(G.fight) return false;
+  G.ambushPhase = false;
   G.timeOfDay++;
-  if(G.timeOfDay > 2){ newDay(); }
+  if(G.timeOfDay >= BAL.time.phases){ newDay(); }
   else if(G.timeOfDay === 1){ log('🌙 夜幕降临，视野变差，野兽开始活动。','warn'); }
-  if(G.timeOfDay === 2 && G.day % BAL.progress.bloodMoonEvery === 0){ triggerBloodMoon(); return; }
+  if(isBloodMoonNight()){ triggerBloodMoon(); return false; }
   if(G.crisisPending && !G.fight){ G.crisisPending = false; triggerCrisis(); }
   drainTick();
-  if(Math.random() < BAL.progress.eventChance) triggerEvent();
+  if(grnd() < BAL.progress.eventChance) triggerEvent();
   clampAll();
-  if(G.health<=0){ gameOver(false,'力竭而亡'); return; }
-  if(G.gatherCd>0) G.gatherCd--;
+  if(G.health<=0){ gameOver(false,'力竭而亡'); return false; }
   G.status = G.status.filter(function(s){ s.turns--; return s.turns>0; });
-  updateUI();
+  return true;
+}
+/* 手动跳过一个时段（扎营等待 / 模拟器推进） */
+function gameTick(){ G.ap = 0; stepPhase(); advance(); }
+/* 花掉若干行动点；攒满一个时段就推进时间，遇到战斗/弹窗/结局即中断 */
+function spendTime(ap){
+  if(!ap || ap<=0 || G.ending || G.fight) return;
+  G.ap = (G.ap||0) + ap;
+  var AP = BAL.time.apPerPhase, guard = 0;
+  while(G.ap >= AP && guard++ < BAL.time.phases*4){
+    G.ap -= AP;
+    if(!stepPhase()){ G.ap = 0; break; }
+  }
 }
 
 function newDay(){
@@ -1638,7 +1808,13 @@ function newDay(){
   G.stats.daysSurvived = G.day;
   if(G.day % BAL.progress.seasonEvery === 0){
     G.season = (G.season+1)%4;
-    log('季节变更为'+SEASONS[G.season].name+'！','event');
+    var S = SEASONS[G.season];
+    log('季节变更为'+S.name+'！','event');
+    if(G.season===3) log('❄️ 入冬了：体温会掉到 '+(BAL.drain.tempBase+S.tempMod)+'°C 左右，低于 '+BAL.drain.coldThreshold+'°C 每时段扣 '+BAL.drain.coldDmg+' 生命——点篝火（+5°C）或把庇护所升上去再出门。','bad');
+    if(G.season===1) log('☀️ 入夏了：消耗加快、正午容易中暑，多备清水。','warn');
+  }
+  if((G.day+1) % BAL.progress.seasonEvery === 0 && SEASONS[(G.season+1)%4].tempMod <= -15){
+    log('🍂 天气正在转冷，冬天明天就到——先把篝火和庇护所准备好。','warn');
   }
   G.weather = rng(0, WEATHERS.length-1);
   // 血月预警
@@ -1652,16 +1828,18 @@ function newDay(){
   if(G.envMod){ G.envMod.days--; if(G.envMod.days<=0){ G.envMod=null; log('天气恢复了正常。','info'); } }
   // 雨水收集器
   if(G.build.rain){ var got = addRes('water', BAL.build.rainWater); if(got>0) log('🛢️ 雨水收集器收集到 '+got+' 份清水。','good'); }
-  // 食物腐坏
+  // 食物腐坏（按批次，旧货先坏）
   if(!G.tech.preserve){
     ['meat','fish'].forEach(function(it){
-      if((G.res[it]||0) > 0){
-        G.spoil[it] = (G.spoil[it]||RESOURCES[it].perish) - 1;
-        if(G.spoil[it] <= 0){
-          var n = G.res[it]; G.res[it] = 0; G.spoil[it] = 0;
-          addRes('rotten', n);
-          log('🤢 '+n+' 份'+RESOURCES[it].name+'腐坏了。','bad');
-        }
+      syncSpoil(it);
+      var q = spoilBatches(it), gone = 0;
+      q.forEach(function(b){ b.d--; });
+      while(q.length && q[0].d <= 0){ gone += q[0].n; q.shift(); }
+      if(gone>0){
+        G.res[it] = Math.max(0, (G.res[it]||0) - gone);
+        G.stats.spoiled = (G.stats.spoiled||0) + gone;
+        addRes('rotten', gone);
+        log('🤢 '+gone+' 份'+RESOURCES[it].name+'腐坏了。','bad');
       }
     });
   }
@@ -1697,7 +1875,7 @@ function drainTick(){
   if(G.thirst<=0){ G.thirst=0; G.health-=D.thirstDmg; log('💧 你严重脱水。','bad'); }
   // 恢复：白天吃饱喝足会自然回血，庇护所等级越高恢复越快
   if(G.timeOfDay===0 && G.hunger>D.regenMinStat && G.thirst>D.regenMinStat){
-    var regen = D.regenBase + G.shelterLevel*D.regenPerShelterLv;
+    var regen = D.regenBase + G.shelterLevel*D.regenPerShelterLv + (syn().regen||0);
     if(hasStatus('fed')) regen += D.regenFed;
     G.health = Math.min(G.maxHealth, G.health + regen);
   }
@@ -1725,7 +1903,8 @@ function checkZoneCleared(){
   toast('区域探索完成：+5 科技点');
   sfx('achv');
 }
-function advance(){
+function advance(ap){
+  if(ap) spendTime(ap);
   clampAll();
   if(G.health<=0){ gameOver(false,'力竭而亡'); return false; }
   checkZoneCleared();
@@ -1736,13 +1915,45 @@ function advance(){
 
 /* ---------------- 血月 ---------------- */
 function triggerBloodMoon(){
-  G.timeOfDay = 2;
+  G.timeOfDay = BAL.time.phases-1;
   G.bloodWarn = false;
-  var maxTier = clamp(Math.floor(G.day/BAL.progress.enemyTierDayDiv) + BAL.progress.bloodMoonTierBonus, 0, BAL.progress.enemyTierMax);
-  var pool = ENEMIES.filter(function(e){ return e.tier <= maxTier; });
-  var e = pick(pool);
+  var e = rollEnemy(hereTerrain(), Math.floor(G.day/BAL.progress.enemyTierDayDiv) + BAL.progress.bloodMoonTierBonus);
   log('🌑 血月升起，'+e.name+'循着血腥味找上门来！','fight');
   startFight(e, true);
+}
+
+/* ---------------- 事件 / 灾变弹窗：排队呈现 ----------------
+   两者共用同一个 #eventModal。原先后触发的会直接改写前一个的文案与按钮，
+   玩家会莫名丢掉一次选择权。这里统一入队，灾变优先（它有 7 天节奏和更重的后果）。*/
+var _modalCur = null, _modalQ = [];
+function queueModal(entry){
+  if(entry.kind === 'crisis') _modalQ.unshift(entry); else _modalQ.push(entry);
+  if(!_modalCur) nextModal();
+}
+function nextModal(){
+  _modalCur = _modalQ.shift() || null;
+  if(!_modalCur){ $('eventModal').classList.add('hidden'); return; }
+  renderModal();
+}
+function renderModal(){
+  var m = _modalCur, isCrisis = m.kind === 'crisis';
+  $('eventTitle').textContent = isCrisis ? (m.data.icon+' 灾变 · '+m.data.name) : m.data.title;
+  $('eventDesc').textContent = m.data.desc +
+    (isCrisis ? ('\n\n（灾变每 '+BAL.progress.crisisEvery+' 天发生一次，提前做好准备可以几乎无伤度过。）') : '');
+  var box = $('eventChoices'); box.innerHTML = '';
+  m.data.choices.forEach(function(ch){
+    var b = document.createElement('button');
+    b.className = 'choice'; b.textContent = ch.text;
+    if(ch.cond && !ch.cond()){ b.style.opacity='.45'; b.textContent = ch.text+'（条件不足）'; b.onclick = function(){ toast('条件不足'); }; }
+    else b.onclick = function(){ answerModal(m, ch); };
+    box.appendChild(b);
+  });
+  $('eventModal').classList.remove('hidden');
+}
+function answerModal(m, ch){
+  if(_modalCur !== m) return;   // 队列已推进，忽略过期点击
+  nextModal();
+  if(m.kind === 'crisis') resolveCrisis(m.data, ch); else resolveEvent(m, ch);
 }
 
 /* ---------------- 灾变 ---------------- */
@@ -1751,22 +1962,10 @@ function triggerCrisis(){
   var c = pick(pool);
   G.lastCrisis = c.id;
   G.pendingCrisis = c;
-  $('eventTitle').textContent = c.icon+' 灾变 · '+c.name;
-  $('eventDesc').textContent = c.desc + '\n\n（灾变每 7 天发生一次，提前做好准备可以几乎无伤度过。）';
-  var box = $('eventChoices'); box.innerHTML = '';
-  c.choices.forEach(function(ch){
-    var b = document.createElement('button');
-    b.className = 'choice';
-    b.textContent = ch.text;
-    if(ch.cond && !ch.cond()){ b.style.opacity='.45'; b.textContent = ch.text+'（条件不足）'; b.onclick = function(){ toast('条件不足'); }; }
-    else b.onclick = function(){ resolveCrisis(ch); };
-    box.appendChild(b);
-  });
-  $('eventModal').classList.remove('hidden');
+  queueModal({kind:'crisis', data:c});
   sfx('hurt'); shake();
 }
-function resolveCrisis(ch){
-  $('eventModal').classList.add('hidden');
+function resolveCrisis(c, ch){
   G.pendingCrisis = null;
   try{ ch.fn(); }catch(e){}
   clampAll(); checkAchievements();
@@ -1778,9 +1977,7 @@ function resolveCrisis(ch){
 function gameOver(win, reason){
   if(G.ending) return;
   G.ending = true;
-  if(window._tick) clearInterval(window._tick);
-  if(win){ clearSave(); }
-  else { saveGame(true); }
+  clearSave();
   showEnding(win, reason);
 }
 
@@ -1791,7 +1988,7 @@ function gameOver(win, reason){
 var QUESTS = [
   {id:'q1', name:'渔夫的请求', need:3, item:'meat',  desc:'阿海想腌些鱼饵，需要 3 块生肉。', reward:{coin:25, res:{medicine:1}}},
   {id:'q2', name:'修补渔网',   need:6, item:'fiber', desc:'阿海的渔网破了，需要 6 份纤维。', reward:{coin:35, res:{wood:20, water:3}}},
-  {id:'q3', name:'除掉威胁',   kill:'bear', need:1,   desc:'营地附近有一头棕熊，阿海不敢出门。', reward:{coin:60, res:{iron:6, medicine:2}}},
+  {id:'q3', name:'除掉威胁',   kill:'bear', need:1,   desc:'营地附近有一头棕熊，阿海不敢出门。棕熊住在山地与洞穴——摸到 🩸 巢穴格可以主动把它拖出来。', reward:{coin:60, res:{iron:6, medicine:2}}},
   {id:'q4', name:'遗迹石板',   need:2, item:'relic', desc:'阿海见过遗迹里的石板，上面刻着信号塔的图纸。', reward:{coin:80, res:{copper:8, iron:4}}},
   {id:'q5', name:'修复信号塔', tower:true,           desc:'带齐材料修复信号塔，逃离这座荒岛！', reward:{}}
 ];
@@ -1833,22 +2030,39 @@ function checkAchievements(){
 }
 
 /* ---------------- 行动：探索与移动 ---------------- */
-function enemyPool(){
-  var maxTier = clamp(Math.floor(G.day/BAL.progress.enemyTierDayDiv), 0, BAL.progress.enemyTierMax);
+function enemyPool(tierOverride){
+  var maxTier = clamp(tierOverride!=null ? tierOverride : Math.floor(G.day/BAL.progress.enemyTierDayDiv),
+                      0, BAL.progress.enemyTierMax);
   return ENEMIES.filter(function(e){ return e.tier <= maxTier; });
 }
+/* 栖息地是「权重」而不是「闸门」：本地住户出现概率更高，但别让只住一两种怪的区域
+   变成每走一步都撞同一号怪物的绞肉机。想稳定挑战某一号怪，去敲它的巢穴。 */
+function rollEnemy(terrain, tierOverride){
+  var pool = enemyPool(tierOverride);
+  if(!terrain || !pool.length) return pick(pool);
+  var table = [], hasLocal = false, W = BAL.ambush.localWeight;
+  pool.forEach(function(e){
+    var local = (e.habitat||[]).indexOf(terrain) >= 0;
+    if(local) hasLocal = true;
+    table.push([e, local ? W : 1]);
+  });
+  return hasLocal ? weightedPick(table, grnd) : pick(pool);
+}
+function hereTerrain(){ var t = hereTile(); return t ? t.t : null; }
 function ambushChance(){
-  var t = TERRAIN[hereTile().t];
+  var t = TERRAIN[hereTile().t], A = BAL.ambush;
   var c = (t.ambush||0) + (WEATHERS[G.weather].ambush||0);
-  if(G.timeOfDay===1) c += 0.10;
-  if(G.timeOfDay===2) c += 0.30;
-  if(G.timeOfDay===1 && G.build.campfire) c *= 0.7;
-  if(G.tech.tracking) c *= 0.7;
-  return clamp(c, 0, 0.8);
+  if(G.timeOfDay===1) c += A.nightAdd;
+  if(G.timeOfDay>=2) c += A.bloodAdd;
+  if(G.timeOfDay===1 && G.build.campfire) c *= A.campfireMul;
+  if(G.tech.tracking) c *= A.trackingMul;
+  return clamp(c, A.min, A.max);
 }
 function tryAmbush(mult){
-  if(Math.random() < ambushChance()*(mult||1)){
-    var e = pick(enemyPool());
+  if(G.ambushPhase) return false;                 // 本时段已经挨过一次伏击了
+  if(grnd() < ambushChance()*(mult||1)){
+    G.ambushPhase = true;
+    var e = rollEnemy(hereTerrain());
     log('👀 '+e.name+'从暗处扑了出来！','fight');
     startFight(e, false);
     return true;
@@ -1866,7 +2080,7 @@ function doExplore(){
   if(n>0) log('🔭 你揭开了周围 '+n+' 格未知区域。','good');
   else log('这一带已经被你探索过了。','info');
   G.techPoints += BAL.explore.techPoint;
-  if(!tryAmbush(BAL.explore.ambushMul)) advance(); else updateUI();
+  if(!tryAmbush(BAL.explore.ambushMul)) advance(BAL.cost.explore); else updateUI();
 }
 
 function moveTo(x,y){
@@ -1885,7 +2099,13 @@ function moveTo(x,y){
   if(unknown) log('🧭 你向未知地带推进到'+TERRAIN[t.t].name+'，揭开 '+n+' 格迷雾。','info');
   else if(n>0) log('🗺️ 前进到'+TERRAIN[t.t].name+'，揭开 '+n+' 格迷雾。','info');
   else log('🗺️ 来到'+TERRAIN[t.t].name+'。','info');
-  if(!tryAmbush(unknown?1.3:1)) advance(); else updateUI();
+  // 已探明的地带不再埋伏；只有踏入未知格才有风险
+  if(unknown){
+    if(tryAmbush(BAL.move.ambushMulUnknown)) updateUI();
+    else advance(BAL.cost.moveUnknown);
+  } else {
+    advance(BAL.cost.move);
+  }
 }
 
 /* ---------------- 区域内寻路：点哪走哪 ---------------- */
@@ -1945,7 +2165,7 @@ function walkTo(tx,ty){
   _walking = true;
   var i = 0;
   (function step(){
-    if(G.fight || G.ending || G.view!=='zone'){ _walking=false; return; }
+    if(G.fight || G.ending || G.view!=='zone' || _modalCur){ _walking=false; return; }
     if(i >= path.length){ _walking=false; updateUI(); return; }
     var idx = path[i++], x = idx % z.w, y = Math.floor(idx / z.w);
     var tt = tileAt(x,y);
@@ -1961,8 +2181,6 @@ function walkTo(tx,ty){
 function doGather(item){
   if(G.fight||G.ending) return;
   if(G.energy < BAL.gather.energy){ toast('体力不足'); return; }
-  if(G.gatherCd>0){ toast('刚采集过，喘口气吧'); return; }
-  if(isOverweight()){ toast('背包已满，先处理一些物资'); return; }
   var tile = hereTile();
   var A = BAL.gather;
   var qty = rng(A.qtyMin, A.qtyMax);
@@ -1970,12 +2188,16 @@ function doGather(item){
   if(G.tech.gatherEff) qty += A.effBonus;
   if(item==='fish' && G.tech.fishing) qty = Math.ceil(qty*A.fishingMul);
   if(tile.node==='rich') qty += A.richBonus;
+  if(G.equipSet>=0 && SETS[G.equipSet] && SETS[G.equipSet].gather) qty += SETS[G.equipSet].gather;
+  qty += (syn().gather||0);
+  // 先确认至少装得下 1 件，否则这一下纯粹是白烧体力
+  if(fitCount(item, qty) <= 0){ toast('背包放不下 '+RESOURCES[item].name+' 了，先处理一些物资'); return; }
   // 夜间稀有：沼泽出荧光苔，火山出夜鳞
-  if(G.timeOfDay>=1 && tile.t==='swamp' && Math.random()<A.mossChance) { addRes('moss',1); log('✨ 你在夜色中发现了发光的苔藓。','good'); }
-  if(G.timeOfDay===2 && tile.t==='volcano' && Math.random()<A.scaleChance) { addRes('scale',1); log('🐉 月光下捡到一片夜鳞。','good'); }
+  if(G.timeOfDay>=1 && tile.t==='swamp' && grnd()<A.mossChance) { addRes('moss',1); log('✨ 你在夜色中发现了发光的苔藓。','good'); }
+  if(G.timeOfDay===2 && tile.t==='volcano' && grnd()<A.scaleChance) { addRes('scale',1); log('🐉 月光下捡到一片夜鳞。','good'); }
   G.energy -= A.energy; G.hunger -= A.hunger; G.thirst -= A.thirst;
   var got = addRes(item, qty);
-  G.techPoints += A.techPoint; G.gatherCd = G.tech.gatherEff ? A.cdEff : A.cd; G.stats.gathered += got;
+  G.techPoints += A.techPoint; G.stats.gathered += got;
   if(got>0) log('采集了 '+got+' 个'+RESOURCES[item].name,'good');
   if(item==='relic' && !G.lore.relicFound){
     G.lore.relicFound = true;
@@ -1989,7 +2211,7 @@ function doGather(item){
   }
   closeGather();
   checkAchievements();
-  advance();
+  advance(BAL.cost.gather - (G.tech.gatherEff ? 1 : 0));
 }
 
 function dryFood(){
@@ -2002,10 +2224,11 @@ function dryFood(){
   if(n<=0){ toast('没有可晾晒的生肉或鲜鱼'); return; }
   var out = Math.max(1, Math.round(n*1)); // 1 生肉 -> 1 肉干
   addRes('driedMeat', out);
-  G.spoil.meat = 0; G.spoil.fish = 0;
+  G.res.meat = 0; G.res.fish = 0;
+  if(G.spoilQ){ G.spoilQ.meat = []; G.spoilQ.fish = []; }
   log('🪜 晾晒了 '+n+' 份生鲜，得到 '+out+' 份肉干（不会腐坏）。','good');
   checkAchievements();
-  advance();
+  advance(BAL.cost.craft);
 }
 
 function doEat(){
@@ -2040,15 +2263,26 @@ function doDrink(){
 
 function doRest(){
   if(G.fight||G.ending) return;
-  if(G.energy>=100){ toast('精力充沛，不需要休息'); return; }
+  if(G.energy>=100 && G.health>=G.maxHealth){ toast('精力充沛，不需要休息'); return; }
   var amt = 20 + G.shelterLevel*5 + (hasStatus('warm')?5:0);
   G.energy = Math.min(100, G.energy+amt);
   G.hunger -= 5; G.thirst -= 5;
   var healed = 0;
   if(G.hunger>40 && G.thirst>40){ healed = 4 + G.shelterLevel*2; G.health = Math.min(G.maxHealth, G.health+healed); }
   floatText('+'+amt+' 体力','heal','left');
-  log('😴 休息了一会儿，精力 +'+amt + (healed? '，生命 +'+healed : ''),'good');
+  log('😴 你躺下休息，打算一觉睡到明天早上……'+(healed?('（生命 +'+healed+'）'):''),'good');
+  // 睡觉 = 把剩下的时段全部推掉，夜里该挨的消耗、该遇的袭一个不少
+  var guard = 0;
+  while(guard++ < BAL.time.phases+1){
+    if(!stepPhase()) break;
+    if(G.timeOfDay === 0) break;   // 新的一天已经开始
+  }
   advance();
+}
+
+function doWait(){
+  if(G.fight||G.ending) return;
+  gameTick();
 }
 
 function doMedicine(){
@@ -2073,12 +2307,35 @@ function craftWeapon(){
   payRes(cost);
   G.weaponLevel++;
   recalcAttack();
-  G.affix = AFFIXES[rng(0, AFFIXES.length-1)];
   G.stats.crafted++;
-  log('⚔️ 打造了新武器：攻击 +5，附带词条「'+G.affix.name+'」（'+G.affix.desc+'）','good');
-  floatText('攻击 +5','gain','left');
+  if(!G.affixes) G.affixes = [];
+  var msg = '⚔️ 打造了新武器：攻击 +'+BAL.craft.weaponAtkPerLv;
+  if(G.affixes.length < BAL.craft.affixSlots){
+    var got = pick(AFFIXES), dup = false;
+    for(var i=0;i<G.affixes.length;i++) if(G.affixes[i].id===got.id) dup=true;
+    if(dup) msg += '（词条槽未增加——你已经带着「'+got.name+'」）';
+    else { G.affixes.push(got); msg += '，领悟词条「'+got.name+'」（'+got.desc+'）'; }
+  }
+  log(msg,'good');
+  floatText('攻击 +'+BAL.craft.weaponAtkPerLv,'gain','left');
   sfx('craft');
-  checkAchievements(); advance();
+  checkAchievements(); advance(BAL.cost.craft);
+}
+/* 磨刀石：只重掷选中的那一槽，看过新词条再决定换不换——旧词条永远不会被偷偷吃掉 */
+function reforgeAffix(i){
+  if(G.fight||G.ending) return;
+  if(!G.affixes || !G.affixes[i]){ toast('还没有这条词条'); return; }
+  var cost = {}; cost.iron = BAL.craft.reforgeIron;
+  if(!hasRes(cost)){ toast('需要 '+BAL.craft.reforgeIron+' 个铁矿'); return; }
+  if((G.res.coin||0) < BAL.craft.reforgeCoin){ toast('还需要 '+BAL.craft.reforgeCoin+' 金币'); return; }
+  payRes(cost); G.res.coin -= BAL.craft.reforgeCoin;
+  var old = G.affixes[i], roll = pick(AFFIXES);
+  log('🪒 你在磨刀石上重新开锋……','info');
+  showInfo('🪒 重铸词条 · 第 '+(i+1)+' 槽',
+    '当前：「'+old.name+'」'+old.desc+'\n\n新锻：「'+roll.name+'」'+roll.desc+
+    '\n\n（花费已经付出，换不换由你看清再定。）',
+    [{text:'换上「'+roll.name+'」', fn:function(){ G.affixes[i] = roll; closeInfo(); advance(BAL.cost.craft); }},
+     {text:'保留「'+old.name+'」', fn:function(){ closeInfo(); advance(BAL.cost.craft); }}]);
 }
 function craftArmor(){
   if(G.fight||G.ending) return;
@@ -2093,7 +2350,7 @@ function craftArmor(){
   log('🛡️ 缝制了新的护甲，防御力 +'+C.armorDefPerLv,'good');
   floatText('防御 +'+C.armorDefPerLv,'gain','left');
   sfx('craft');
-  advance();
+  advance(BAL.cost.craft);
 }
 function craftMedicine(){
   if(!G.tech.herb){ toast('需要先解锁「草药学」科技'); return; }
@@ -2103,9 +2360,9 @@ function craftMedicine(){
   G.stats.crafted++;
   log('💊 熬制出 1 份药品','good');
   sfx('craft');
-  advance();
+  advance(BAL.cost.craft);
 }
-function cookRecipe(idx){
+function cookRecipe(idx, quiet){
   var r = RECIPES[idx];
   if(!r) return;
   if(r.needTech && !G.tech[r.needTech]){ toast('需要先解锁对应科技'); return; }
@@ -2123,20 +2380,23 @@ function cookRecipe(idx){
   }
   G.stats.cooked++;
   sfx('craft');
-  checkAchievements(); advance();
+  checkAchievements(); advance(quiet ? 0 : BAL.cost.cook);
 }
 function cookAll(){
-  var n = 0;
-  for(var i=0; i<RECIPES.length && n<8; i++){
-    var r = RECIPES[i];
-    if(r.needTech && !G.tech[r.needTech]) continue;
-    if(r.needBuild && !G.build[r.needBuild]) continue;
-    if(!hasRes(r.cost)) continue;
-    cookRecipe(i);
-    n++;
-    if(G.ending || G.health<=0) break;
+  var LIMIT = BAL.craft.batchCookLimit, n = 0;
+  while(n < LIMIT){
+    var progressed = false;
+    for(var i=0;i<RECIPES.length && n<LIMIT;i++){
+      var r = RECIPES[i];
+      if(r.needTech && !G.tech[r.needTech]) continue;
+      if(r.needBuild && !G.build[r.needBuild]) continue;
+      if(!hasRes(r.cost)) continue;
+      cookRecipe(i, true); n++; progressed = true;
+      if(G.ending || G.health<=0) break;
+    }
+    if(!progressed) break;
   }
-  if(n>0) toast('批量烹饪 '+n+' 次');
+  if(n>0){ toast('批量烹饪 '+n+' 次'); advance(BAL.cost.cookAll); }
   else toast('没有可烹饪的配方');
 }
 function equipSet(idx){
@@ -2145,12 +2405,12 @@ function equipSet(idx){
   if(!hasRes(s.cost)){ toast('材料不足'); return; }
   payRes(s.cost);
   G.equipSet = idx;
-  recalcDefense();
+  recalcDefense(); recalcAttack();
   log('🧥 换上了'+s.name+'：'+s.desc,'good');
   sfx('craft');
-  advance();
+  advance(BAL.cost.craft);
 }
-function recalcAttack(){ G.attack = 10 + G.weaponLevel*BAL.craft.weaponAtkPerLv; if(G.tech.forge) G.attack = Math.round(G.attack*BAL.craft.forgeMul); }
+function recalcAttack(){ G.attack = 10 + G.weaponLevel*BAL.craft.weaponAtkPerLv; if(G.tech.forge) G.attack = Math.round(G.attack*BAL.craft.forgeMul); G.attack += (syn().atk||0); }
 function recalcDefense(){
   var base = G.armorLevel*BAL.craft.armorDefPerLv;
   if(G.equipSet>=0) base += SETS[G.equipSet].def;
@@ -2167,15 +2427,13 @@ function buildShelter(){
   var base = SHELTER_COST[G.shelterLevel];
   var mul = shelterCostMul(), cost={};
   for(var k in base) cost[k] = Math.max(1, Math.round(base[k]*mul));
-  if(G.tech.arch) cost = {wood:Math.max(1,Math.round(base.wood*0.8)), stone:Math.max(1,Math.round(base.stone*0.8))};
-  if(G.shelterLevel===0) cost = {wood:5, stone:3};
   if(!hasRes(cost)){ toast('材料不足：需要 '+costText(cost).replace(/<[^>]+>/g,'')); return; }
   payRes(cost);
   G.shelterLevel++;
   G.energy = Math.max(0, G.energy-10);
   log('🏠 庇护所升级到 Lv'+G.shelterLevel+'（'+SHELTER_LEVELS[G.shelterLevel].name+'）','good');
   sfx('craft');
-  checkAchievements(); advance();
+  checkAchievements(); advance(BAL.cost.build);
 }
 function buildBuilding(id){
   var b = BUILDINGS.filter(function(x){ return x.id===id; })[0];
@@ -2189,7 +2447,7 @@ function buildBuilding(id){
   G.build[id] = lv+1;
   log('🏕️ 建造了'+b.name+'：'+b.eff,'good');
   sfx('craft');
-  checkAchievements(); advance();
+  checkAchievements(); advance(BAL.cost.build);
 }
 
 /* ---------------- 任务 ---------------- */
@@ -2220,7 +2478,7 @@ function questTurnIn(){
   G.affinity = (G.affinity||0) + 1;
   G.quest.idx++; G.quest.prog = 0;
   sfx('quest');
-  checkAchievements(); advance();
+  checkAchievements(); advance(BAL.cost.quest);
 }
 function onKill(enemy){
   var q = curQuest();
@@ -2240,7 +2498,34 @@ function repairTower(){
   G.quest.idx = 5;
   G.endingDone = true;
   log('📡 信号塔修复完成！你发出了求救信号……','event');
+  checkAchievements();
   setTimeout(function(){ gameOver(true,'你成功逃离了荒岛'); }, 900);
+}
+
+/* ---------------- 巢穴：主动挑衅狩猎 ---------------- */
+function denHere(){
+  var z = curZone(); if(!z || z.denIdx === undefined) return null;
+  return (z.py*z.w + z.px) === z.denIdx ? enemyById(z.denId) : null;
+}
+function maxEnemyTier(){ return clamp(Math.floor(G.day/BAL.progress.enemyTierDayDiv), 0, BAL.progress.enemyTierMax); }
+function confirmHunt(){
+  var e = denHere(); if(!e) return;
+  var over = e.tier > maxEnemyTier();
+  showInfo('🩸 '+e.name+'的巢穴',
+    e.desc+'\n\n生命 '+e.hp+' · 攻击 '+e.atk+' · 危险等级 '+'☠'.repeat(e.tier+1)+
+    (over ? '\n\n⚠️ 这玩意儿超出你目前招惹得起的等级——现在进去大概率是送。' : '\n\n💡 '+e.tip)+
+    '\n\n耗时 '+BAL.cost.hunt+' 行动 · 体力 12',
+    [{text: over?'硬闯进去（后果自负）':'进去把它拖出来', fn:function(){ closeInfo(); provokeHunt(); }},
+     {text:'退开，再练练', fn:closeInfo}]);
+}
+function provokeHunt(){
+  if(G.fight||G.ending) return;
+  var e = denHere(); if(!e){ toast('这里没有巢穴'); return; }
+  if(G.energy < 12){ toast('体力不足，先休息一下'); return; }
+  G.energy -= 12;
+  log('🪓 你摸进'+e.name+'的巢穴，把它的注意力拉了过来！','fight');
+  startFight(e, false);
+  advance(BAL.cost.hunt);
 }
 
 /* ---------------- 商店 ---------------- */
@@ -2295,7 +2580,7 @@ function doBuy(item, price, after){
     log('🛒 买入了 1 个'+RESOURCES[item].name+'（-'+price+' 金币）','good');
     sfx('coin');
   }
-  checkAchievements(); renderShop(); updateUI();
+  checkAchievements(); advance(BAL.cost.trade); renderShop();
 }
 function buyItem(item, price){
   var s = ensureShop();
@@ -2315,7 +2600,7 @@ function sellItem(item){
   G.stats.shops++;
   log('🛒 卖出 1 个'+RESOURCES[item].name+'（+'+price+' 金币）','good');
   sfx('coin');
-  checkAchievements(); renderShop(); updateUI();
+  checkAchievements(); advance(BAL.cost.trade); renderShop();
 }
 /* 批量出售：一次清空该物资 */
 function sellAll(item){
@@ -2327,7 +2612,32 @@ function sellAll(item){
   G.stats.shops += n;
   log('🛒 卖出 '+n+' 个'+RESOURCES[item].name+'（+'+unit*n+' 金币）','good');
   sfx('coin');
-  checkAchievements(); renderShop(); updateUI();
+  checkAchievements(); advance(BAL.cost.trade); renderShop();
+}
+
+/* ---------------- 丢弃物资 ----------------
+   负重是真约束（超重禁止采集），但游戏此前没有任何丢弃入口——背包一旦被废柴物资填满就永久卡死。
+   腐肉、喝不完的清水都需要能扔掉。 */
+function dropRes(item, n){
+  if(item==='coin' || !(n>0)) return;
+  var have = G.res[item] || 0;
+  if(have <= 0) return;
+  var k = Math.min(have, n);
+  G.res[item] = have - k;
+  if(G.res[item] <= 0) delete G.res[item];
+  syncSpoil(item);
+  log('🗑️ 丢掉了 '+k+' 份'+RESOURCES[item].name+'（腾出 '+(k*RESOURCES[item].w).toFixed(1)+' 负重）','info');
+  updateUI();
+}
+function confirmDrop(item){
+  if(G.fight||G.ending) return;
+  var have = G.res[item]||0; if(have<=0) return;
+  showInfo('🎒 丢弃'+RESOURCES[item].name,
+    '当前 '+have+' 份 · 单份重量 '+RESOURCES[item].w+' · 合计 '+(have*RESOURCES[item].w).toFixed(1)+'\n\n'+
+    '负重 '+weightOf()+' / '+capacity()+'。扔掉的东西藏不回背包，但能立刻腾出格子。',
+    [{text:'丢弃 1 份', fn:function(){ closeInfo(); dropRes(item,1); }},
+     {text:'全部丢弃（'+have+' 份）', fn:function(){ closeInfo(); dropRes(item,have); }},
+     {text:'先留着', fn:closeInfo}]);
 }
 
 /* =========================================================================
@@ -2338,14 +2648,14 @@ function rollIntent(){
   var e = G.fight.enemy, mv = e.mv || {a:48,h:30,s:22};
   var canStatus = e.status && e.status !== 'none';
   var a = mv.a, h = mv.h, s = canStatus ? mv.s : 0;
-  var r = Math.random() * (a + h + s);
+  var r = grnd() * (a + h + s);
   if(r < a) G.fight.intent = 'attack';
   else if(r < a+h) G.fight.intent = 'heavy';
   else G.fight.intent = canStatus ? 'status' : 'attack';
 }
 function startFight(enemy, isBlood){
   var C = BAL.combat;
-  var elite = G.day >= C.eliteMinDay && Math.random() < C.eliteChance;
+  var elite = G.day >= C.eliteMinDay && grnd() < C.eliteChance;
   if(elite){
     enemy = Object.assign({}, enemy);
     enemy.name = '精英·' + enemy.name;
@@ -2416,29 +2726,38 @@ function fightAct(kind){
     enemyTurn(); return;
   }
   if(kind==='attack'){
-    var C = BAL.combat;
-    var aff = G.affix ? G.affix.id : null;
-    var critChance = C.critBase + (aff==='crit' ? C.critAffix : 0);
-    var crit = Math.random() < (hasStatus('focused') ? 1 : critChance);
-    var dmg = Math.max(1, Math.round(G.attack*(C.dmgJitterMin+Math.random()*C.dmgJitterSpan)*(aff==='heavy' ? C.heavyAffixMul : 1)));
+    var C = BAL.combat, SY = syn();
+    var critChance = C.critBase + (hasAffix('crit') ? C.critAffix : 0);
+    var crit = grnd() < (hasStatus('focused') ? 1 : critChance);
+    var dmgMul = (hasAffix('heavy') ? C.heavyAffixMul : 1) *
+                 (hasAffix('heavy') && f.charging ? C.heavyChargeMul : 1);
+    var dmg = Math.max(1, Math.round(G.attack*(C.dmgJitterMin+grnd()*C.dmgJitterSpan)*dmgMul));
     if(crit){ dmg = Math.round(dmg*C.critMul); clearStatus('focused'); }
     f.hp -= dmg;
-    G.rage = Math.min(C.rageMax, (G.rage||0) + (crit?C.ragePerCrit:C.ragePerAttack));
+    var rg = (crit?C.ragePerCrit:C.ragePerAttack) + (crit&&hasAffix('crit')?C.critRageBonus:0) + (SY.rage||0);
+    G.rage = Math.min(C.rageMax, (G.rage||0) + rg);
     var healed = 0;
-    if(aff==='leech'){ healed = Math.max(1, Math.round(dmg*C.leechRatio)); G.health = Math.min(G.maxHealth, G.health+healed); floatText('+'+healed,'heal','player'); }
+    if(hasAffix('leech')){
+      healed = Math.max(1, Math.round(dmg*C.leechRatio*(G.branch==='hunter'?C.leechHunterMul:1)));
+      G.health = Math.min(G.maxHealth, G.health+healed);
+      floatText('+'+healed,'heal','player');
+    }
+    if(hasAffix('swift') && (G.rage||0) >= C.specCost && !hasStatus('focused')){
+      addStatus('focused', 3); logCombat('🎯 迅捷：你抓住了破绽，下次攻击必定暴击','sys');
+    }
     logCombat('你造成 '+dmg+' 点伤害'+(crit?'（暴击！）':'')+(healed?('，回复 '+healed+' 生命'):''),'you');
     floatText('-'+dmg, crit?'crit':'dmg', 'enemy');
     sfx('hit');
     if(f.hp<=0){ winFight(); return; }
   } else if(kind==='defend'){
     f.def = true;
-    G.rage = Math.min(BAL.combat.rageMax, (G.rage||0) + BAL.combat.ragePerDefend);
+    G.rage = Math.min(BAL.combat.rageMax, (G.rage||0) + BAL.combat.ragePerDefend + (syn().rage||0));
     logCombat('🛡️ 你举起防御：伤害减半，同时积蓄怒气。','sys');
   } else if(kind==='special'){
     if((G.rage||0) < BAL.combat.specCost){ toast('怒气不足 '+BAL.combat.specCost+'——攻击或防御可以积累怒气'); return; }
     G.rage -= BAL.combat.specCost;
     var mul = G.tech.bow ? BAL.combat.bowSpecMul : 1;
-    var d = Math.max(1, Math.round(G.attack*BAL.combat.specMul*mul*(BAL.combat.dmgJitterMin+Math.random()*BAL.combat.dmgJitterSpan)));
+    var d = Math.max(1, Math.round(G.attack*BAL.combat.specMul*mul*(BAL.combat.dmgJitterMin+grnd()*BAL.combat.dmgJitterSpan)));
     f.hp -= d;
     logCombat('✨ 特殊攻击！造成 '+d+' 点伤害','you');
     floatText('-'+d,'crit','enemy');
@@ -2446,7 +2765,7 @@ function fightAct(kind){
     if(f.hp<=0){ winFight(); return; }
   } else if(kind==='run'){
     var chance = (f.blood ? BAL.combat.runBlood : BAL.combat.runBase) + (G.energy>=BAL.combat.runEnergyMin ? BAL.combat.runEnergyBonus : 0);
-    if(Math.random() < chance){
+    if(grnd() < chance){
       logCombat('🏃 你成功逃脱了！','sys');
       G.energy = Math.max(0, G.energy-BAL.combat.runEnergyCost);
       endFight(false);
@@ -2499,7 +2818,7 @@ function enemyTurn(){
     });
   }
   G.health = Math.round(G.health);
-  if(G.health < hpBefore) G.rage = Math.min(100, (G.rage||0) + 8 + (G.affix && G.affix.id==='swift' ? 5 : 0));
+  if(G.health < hpBefore) G.rage = Math.min(100, (G.rage||0) + 8 + (hasAffix('swift')?BAL.combat.rageSwiftBonus:0) + (syn().rage||0));
   renderFight();
   if(G.health<=0){ loseFight(); return; }
   rollIntent();
@@ -2670,13 +2989,17 @@ function renderTip(){
 }
 function dismissTip(){ G.tut = false; var b=$('tipBar'); if(b) b.classList.add('hidden'); }
 function showHelp(){
+  var C = BAL.cost, AP = BAL.time.apPerPhase;
   showInfo('❓ 操作与玩法速查',
+    '⏳ 时间就是你的钱：游戏不再走真实秒表，每个行为按「行动点」消耗时间。一天 '+BAL.time.phases+' 个时段，一个时段 '+AP+' 点；顶栏 ⏳ 会显示本时段还剩几点。\n\n'+
+    '📋 价目表：移动 '+C.move+' 点（未知地带 '+C.moveUnknown+'）· 采集 '+C.gather+' · 探索 '+C.explore+' · 跨区域 '+C.travel+' · 制作 '+C.craft+' · 建造 '+C.build+' · 交易 '+C.trade+' · 交任务 '+C.quest+'（吃饭喝水用药不占时间）\n\n'+
     '🌍 全岛总览：点击区域或下方标签进入（🔒 需科技点解锁）；可拖动平移、滚轮或 ＋− 缩放\n\n'+
-    '🏘️ 区域内：点击任意已探索格子自动走过去（3 体力/格）；虚线框「？」未知地带可直接推进（6 体力）\n\n'+
+    '🏘️ 区域内：点击任意已探索格子自动走过去；虚线框「？」未知地带可直接推进，体力与遇敌风险都更高\n\n'+
+    '🍽️ 快捷行动条：吃 / 喝 / 睡到明早 / 用药 / 熬过这段。「睡到明早」会把当天剩下的时段全睡掉，夜里该挨的消耗和袭击一个都跑不掉\n\n'+
     '⌨️ 快捷键：W A S D / 方向键移动 · Q 全岛 · E 区域 · ＋ − 缩放\n\n'+
-    '⚔️ 战斗：敌人会预告下一招（蓄力后接重击，赶紧防御）；攻击/受击/防御都会积累怒气，40 怒气可放特殊攻击\n\n'+
-    '🍖 生存：生鲜 3 天腐坏 · 超重无法采集 · 每 7 天可能发生灾变（会提前一天预警）\n\n'+
-    '📡 目标：集齐材料修复信号塔，逃离荒岛',
+    '⚔️ 战斗：敌人会预告下一招（蓄力后接重击，赶紧防御）；攻击/受击/防御都会积累怒气，'+BAL.combat.specCost+' 怒气可放特殊攻击\n\n'+
+    '🎒 负重：生鲜按批次腐坏（捡新的不会让旧货续命）· 超重无法采集\n\n'+
+    '📡 目标：完成阿海的 5 段任务、集齐材料修复信号塔，逃离荒岛',
     [{text:'明白了', fn:closeInfo}]);
 }
 
@@ -2697,24 +3020,13 @@ function closeInfo(){ $('infoModal').classList.add('hidden'); }
 
 /* ---------------- 事件 ---------------- */
 function triggerEvent(){
-  var evt = pickEvent();
+  var p = pickEvent();
   G.stats.events++;
-  $('eventTitle').textContent = evt.title;
-  $('eventDesc').textContent = evt.desc;
-  var box = $('eventChoices'); box.innerHTML = '';
-  evt.choices.forEach(function(ch){
-    var b = document.createElement('button');
-    b.className = 'choice';
-    b.textContent = ch.text;
-    if(ch.cond && !ch.cond()){ b.style.opacity = '.45'; b.textContent = ch.text+'（条件不足）'; b.onclick = function(){ toast('条件不足'); }; }
-    else b.onclick = function(){ resolveEvent(evt, ch); };
-    box.appendChild(b);
-  });
-  $('eventModal').classList.remove('hidden');
+  queueModal({kind:'event', data:p.evt, chain:p.chain});
 }
-function resolveEvent(evt, ch){
-  $('eventModal').classList.add('hidden');
-  var wasChain = evt._chain, chIdx = evt.choices.indexOf(ch);
+function resolveEvent(entry, ch){
+  var evt = entry.data;
+  var wasChain = entry.chain, chIdx = evt.choices.indexOf(ch);
   try{ ch.fn(); }catch(e){}
   clampAll();
   // 事件链推进：只有选了「愿意深究」的那个选项才算数
@@ -2725,7 +3037,6 @@ function resolveEvent(evt, ch){
       if(G.chains[c.id] >= c.steps.length) completeChain(c);
       else log('🧩 线索延伸：'+c.name+' '+G.chains[c.id]+' / '+c.steps.length,'info');
     }
-    evt._chain = null;
   }
   checkAchievements();
   if(G.health<=0){ gameOver(false,'在意外中丧命'); return; }
@@ -2739,8 +3050,15 @@ function updateUI(){
   if(!G || !G.res) return;
   // HUD
   $('dayCount').textContent = G.day;
-  var tc = $('timeChip'), tn = ['☀️ 白天','🌙 夜晚','🌑 血月'][G.timeOfDay];
-  tc.textContent = tn; tc.className = 'chip' + (G.timeOfDay===1?' night':'') + (G.timeOfDay===2?' blood':'');
+  var tc = $('timeChip'), bm = isBloodMoonNight();
+  tc.textContent = bm ? '🌑 血月' : ['☀️ 白天','🌙 夜晚','🌌 深夜'][G.timeOfDay];
+  tc.className = 'chip' + (bm ? ' blood' : (G.timeOfDay>=1 ? ' night' : ''));
+  var apLeft = Math.max(0, BAL.time.apPerPhase - (G.ap||0));
+  var ac = $('apChip');
+  if(ac){
+    ac.textContent = '⏳ 余 '+apLeft+' 行动';
+    ac.className = 'chip' + (apLeft<=1 ? ' warn' : '');
+  }
   $('seasonChip').textContent = SEASONS[G.season].icon+' '+SEASONS[G.season].name;
   $('weatherChip').textContent = WEATHERS[G.weather].icon+' '+WEATHERS[G.weather].name;
   $('tempChip').textContent = '🌡️ '+G.temperature+'°C';
@@ -2792,7 +3110,7 @@ function updateUI(){
       if(G.build[b.id]>0){ bl.insertAdjacentHTML('beforeend','<div class="row done"><div class="r-name"><span>'+b.icon+' '+b.name+'</span><span class="r-sub">Lv'+G.build[b.id]+'</span></div><div class="r-sub">'+b.eff+'</div></div>'); }
     });
   }
-  renderMap(); renderSite(); renderPack(); renderCraft(); renderTech();
+  renderMap(); renderSite(); renderQuickActions(); renderPack(); renderCraft(); renderTech();
   renderQuest(); renderCodex(); renderAchv(); renderBuild();
   renderTip();
 }
@@ -2900,7 +3218,9 @@ function renderRegionChips(){
   var html = '<div class="region-chips">';
   REGIONS.forEach(function(R){
     var locked = !G.unlocked[R.id], here = (R.id === G.cur);
+    var den = R.poi ? null : denEnemyFor(R.terrain);
     html += '<button class="region-chip'+(here?' on':'')+(locked?' lock':'')+'" title="'+R.desc+' ｜ 产出：'+R.out+
+            ' ｜ 巢穴：'+(den?den.name:'无')+
             '" onclick="enterRegion(\''+R.id+'\')">'+R.icon+' '+R.name+(locked?' 🔒'+R.cost:'')+'</button>';
   });
   html += '</div>';
@@ -2924,7 +3244,7 @@ function renderZoneGrid(){
     }
   }
   function defaultHint(){
-    return '点击<b>金色高亮相邻格</b>自动走过去（3 体力/格）· 闪烁虚线框是未知地带，可直接推进（6 体力，风险更高）· 悬停格子可预览路线 · 右下角小地图回全岛';
+    return '点击<b>金色高亮相邻格</b>走过去（'+BAL.move.costKnown+' 体力 / '+BAL.cost.move+' 行动）· 闪烁虚线框是未知地带，可直接推进（'+BAL.move.costUnknown+' 体力 / '+BAL.cost.moveUnknown+' 行动，风险更高）· 悬停格子可预览路线 · 右下角小地图回全岛';
   }
   clearPath();
   for(var y=0;y<z.h;y++) for(var x=0;x<z.w;x++){
@@ -2937,6 +3257,8 @@ function renderZoneGrid(){
       if(t.t==='camp'||t.t==='tower') cls += ' poi';
       var isShop = (z.shopIdx !== undefined && (y*z.w+x) === z.shopIdx);
       if(isShop){ cls += ' shop'; title += ' · ⛺ 商人营地'; }
+      var isDen = (z.denIdx !== undefined && (y*z.w+x) === z.denIdx);
+      if(isDen){ var dn = enemyById(z.denId); cls += ' den'; title += ' · 🩸 '+((dn&&dn.name)||'')+'的巢穴'; }
       var e = (typeof t.e === 'number') ? t.e : 0.5;
       var isHere = (x===z.px && y===z.py);
       if(isHere){ cls += ' here'; el.style.backgroundColor = 'rgba(46,204,113,.42)'; }
@@ -3050,9 +3372,11 @@ function renderSite(){
     b.className='btn sm '+cls; b.textContent=label; b.onclick=fn;
     if(off) b.classList.add('off');
     box.appendChild(b);
+    return b;
   }
   T.gather.forEach(function(item){
-    addBtn(RESOURCES[item].icon+' 采集'+RESOURCES[item].name, '', function(){ doGather(item); }, G.energy<5);
+    var gb = addBtn(RESOURCES[item].icon+' 采集'+RESOURCES[item].name, '', function(){ doGather(item); }, G.energy<5);
+    if(gb) gb.title = '耗时 '+(BAL.cost.gather-(G.tech.gatherEff?1:0))+' 行动 · 体力 '+BAL.gather.energy;
   });
   if(G.build.rack && ((G.res.meat||0)>0 || (G.res.fish||0)>0))
     addBtn('🪜 晾晒成肉干','', dryFood, false);
@@ -3063,9 +3387,42 @@ function renderSite(){
     addBtn('🧓 和 阿海 交谈','primary', talkNpc, false);
   }
   if(t.t==='tower') addBtn('📡 修复信号塔','primary', repairTower, false);
+  var den = denHere();
+  if(den) addBtn('🩸 挑衅 '+den.name, 'red', confirmHunt, false);
   addBtn('🌍 全岛总览','ghost', showWorld, false);
   if(box.children.length<=1) box.insertAdjacentHTML('afterbegin','<span class="r-sub" style="width:100%">这里没有可做的事，换个格子或用「🔭 探索」揭开迷雾。</span>');
 }
+/* ---------------- 快捷行动：吃 / 喝 / 睡 / 药 / 等 ---------------- */
+var FOOD_ORDER = ['cookedMeat','cookedFish','driedMeat','berry','meat'];
+function bestFood(){
+  for(var i=0;i<FOOD_ORDER.length;i++){ if((G.res[FOOD_ORDER[i]]||0)>0) return FOOD_ORDER[i]; }
+  return null;
+}
+function renderQuickActions(){
+  var box = $('quickTabs'); if(!box) return;
+  box.innerHTML = '';
+  var busy = !!(G.fight||G.ending);
+  function q(label, tip, off, fn){
+    var b = document.createElement('button');
+    b.className = 'btn sm'+((off||busy)?' off':'');
+    b.style.cssText = 'flex:1 1 0;justify-content:center';
+    b.textContent = label; b.title = tip;
+    if(!off && !busy) b.onclick = fn;
+    box.appendChild(b);
+  }
+  var f = bestFood();
+  q(f ? (RESOURCES[f].icon+' 吃'+RESOURCES[f].name) : '🍽️ 没有食物',
+    '吃下手头最好的一份食物（生肉能填肚子但会中毒）', !f, doEat);
+  q('💧 喝水'+((G.res.water||0)>0?' ('+(G.res.water)+')':''),
+    '喝一份清水，回复 '+BAL.food.water+' 点口渴', !(G.res.water>0), doDrink);
+  q('😴 睡到明早',
+    '恢复体力与生命，但会把今天剩下的时段全部睡掉（夜里可能遇袭、血月会找上门）',
+    G.energy>=100 && G.health>=G.maxHealth, doRest);
+  q('💊 用药'+((G.res.medicine||0)>0?' ('+(G.res.medicine)+')':''),
+    '回复生命并解除所有负面状态', !(G.res.medicine>0), doMedicine);
+  q('⏳ 熬过这段', '什么都不做，硬捱过一个时段', false, doWait);
+}
+
 function renderRegionCard(){
   var R = REGION_BY_ID[G.cur];
   var locked = !G.unlocked[R.id];
@@ -3081,6 +3438,7 @@ function renderRegionCard(){
     b.className='btn sm '+cls; b.textContent=label; b.onclick=fn;
     if(off) b.classList.add('off');
     box.appendChild(b);
+    return b;
   }
   if(locked){
     addBtn('🔓 解锁并进入（'+R.cost+' 科技点）','blue', function(){ enterRegion(R.id); }, G.techPoints<R.cost);
@@ -3096,20 +3454,23 @@ function renderPack(){
   for(var k in G.res){
     var n=G.res[k]||0; if(n<=0) continue;
     any=true;
-    var per = RESOURCES[k].perish && (G.spoil[k]||0)<=1;
+    var age = RESOURCES[k].perish ? spoilAge(k) : 0;
+    var per = RESOURCES[k].perish && age<=1;
     var d=document.createElement('div');
     d.className='res'+(per?' perish':'');
-    d.title = RESOURCES[k].name + (RESOURCES[k].perish? '（'+(G.spoil[k]||0)+' 天后腐坏）' : '');
+    d.title = RESOURCES[k].name + (RESOURCES[k].perish? '（'+age+' 天后腐坏）' : '');
     d.innerHTML='<div class="ri">'+RESOURCES[k].icon+'</div><div class="rc">'+n+'</div><div class="rn">'+RESOURCES[k].name+'</div>';
+    if(k!=='coin'){ d.style.cursor='pointer'; d.onclick=(function(kk){ return function(){ confirmDrop(kk); }; })(k); d.title += ' · 点击可丢弃'; }
     grid.appendChild(d);
   }
   if(!any) grid.innerHTML='<div class="empty" style="grid-column:1/-1">行囊空空如也</div>';
   var w = weightOf(), cap = capacity();
   $('weightLabel').textContent = w+' / '+cap;
   $('weightLabel').style.color = w>=cap? '#ff6b6b' : '';
+  $('weightLabel').title = '达到上限将无法继续采集；点击背包里的物资可以扔掉一部分';
   var note=[];
-  if(G.spoil.meat>0 && (G.res.meat||0)>0) note.push('生肉 '+G.spoil.meat+' 天后腐坏');
-  if(G.spoil.fish>0 && (G.res.fish||0)>0) note.push('鲜鱼 '+G.spoil.fish+' 天后腐坏');
+  if((G.res.meat||0)>0) note.push('生肉 '+spoilAge('meat')+' 天后腐坏');
+  if((G.res.fish||0)>0) note.push('鲜鱼 '+spoilAge('fish')+' 天后腐坏');
   if(G.tech.preserve) note.push('保存术：食物不会腐坏');
   if(G.build.rack) note.push('晾肉架可将生鲜制成肉干');
   $('packNote').innerHTML = note.length? note.join(' · ') : (w>=cap?'背包已满，无法再携带更多资源':'');
@@ -3130,10 +3491,24 @@ function renderCraft(){
     box.appendChild(d);
   }
   var wc={wood:2+G.weaponLevel*2, stone:Math.ceil((2+G.weaponLevel*2)/2)};
-  var affTag = G.affix ? '<span class="affix-tag">'+G.affix.name+'</span>' : '';
+  var affs = G.affixes || [];
+  var affTag = affs.map(function(a){ return '<span class="affix-tag" title="'+a.desc+'">'+a.name+'</span>'; }).join('');
+  var nextAtk = Math.round(((10+(G.weaponLevel+1)*BAL.craft.weaponAtkPerLv)*(G.tech.forge?BAL.craft.forgeMul:1) + (syn().atk||0)));
   item('⚔️','武器 Lv'+G.weaponLevel+' '+affTag,
-    (G.affix?('词条「'+G.affix.name+'」：'+G.affix.desc+' · '):'下次升级随机获得词条 · ')+'攻击 '+G.attack+' → '+((10+(G.weaponLevel+1)*5)*(G.tech.forge?1.5:1)).toFixed(0)+' · '+costText(wc),
+    '词条 '+affs.length+'/'+BAL.craft.affixSlots+'（打造只补空槽，绝不覆盖已有词条） · 攻击 '+G.attack+' → '+nextAtk+' · '+costText(wc),
     hasRes(wc), craftWeapon, '打造');
+  affs.forEach(function(a, idx){
+    var rc = {iron:BAL.craft.reforgeIron};
+    var ok = hasRes(rc) && (G.res.coin||0)>=BAL.craft.reforgeCoin;
+    var d = document.createElement('div');
+    d.className='row';
+    d.innerHTML='<div class="r-name"><span>🪒 重铸第 '+(idx+1)+' 槽 · '+a.name+'</span></div>'+
+                '<div class="r-sub">'+a.desc+' · 花 '+BAL.craft.reforgeIron+' 铁矿 + '+BAL.craft.reforgeCoin+' 金币重掷这一条（看过新的再决定换不换）</div>';
+    var b=document.createElement('button');
+    b.className='btn sm '+(ok?'green':'ghost'); b.textContent='重铸'; b.style.marginTop='7px';
+    if(!ok) b.classList.add('off'); else b.onclick=function(){ reforgeAffix(idx); };
+    d.appendChild(b); box.appendChild(d);
+  });
   var ac={fiber:3+G.armorLevel*2, leather:Math.ceil((3+G.armorLevel*2)/2)};
   item('🛡️','护甲 Lv'+G.armorLevel,'防御 '+G.defense+' · 材料 '+costText(ac), hasRes(ac), craftArmor, '缝制');
   if(G.tech.herb) item('💊','药品','解除负面状态并回复 '+(G.tech.brew?60:30)+' 生命 · 材料 '+costText({herb:3}), hasRes({herb:3}), craftMedicine, '熬制');
@@ -3150,9 +3525,16 @@ function renderCraft(){
   SETS.forEach(function(s,i){
     var locked = s.needTech && !G.tech[s.needTech];
     var on = G.equipSet===i;
+    var synote = '';
+    for(var sy=0;sy<SYNERGY.length;sy++){
+      if(SYNERGY[sy].set !== s.name) continue;
+      synote = (G.branch===SYNERGY[sy].branch)
+        ? '<div class="r-sub" style="color:#7dcea0">✓ 协同已激活：'+SYNERGY[sy].note+'</div>'
+        : '<div class="r-sub" style="color:var(--dim2)">协同：走「'+BRANCHES[SYNERGY[sy].branch].name+'」路线可激活 —— '+SYNERGY[sy].note+'</div>';
+    }
     var d=document.createElement('div');
     d.className='row'+(on?' cur':(locked?' locked':''));
-    d.innerHTML='<div class="r-name"><span>🧥 '+s.name+'</span><span class="r-sub">'+s.desc+'</span></div><div class="r-sub">材料 '+costText(s.cost)+(locked?' · 需要冶炼技术':'')+'</div>';
+    d.innerHTML='<div class="r-name"><span>🧥 '+s.name+'</span><span class="r-sub">'+s.desc+'</span></div><div class="r-sub">材料 '+costText(s.cost)+(locked?' · 需要冶炼技术':'')+'</div>'+synote;
     var b=document.createElement('button');
     b.className='btn sm '+(on?'ghost':(hasRes(s.cost)&&!locked?'green':'ghost'));
     b.textContent = on?'已装备':'装备';
@@ -3238,6 +3620,11 @@ function renderQuest(){
   $('questLabel').textContent = G.quest.idx>=QUESTS.length? '全部完成' : ('进行中 '+(G.quest.idx+1)+'/'+QUESTS.length);
   if(G.quest.idx>=QUESTS.length){ box.innerHTML='<div class="empty">所有任务都完成了，去信号塔吧！</div>'; return; }
   box.insertAdjacentHTML('beforeend','<div class="row cur"><div class="r-name"><span>📜 '+q.name+'</span></div><div class="r-sub">'+q.desc+'</div><div class="r-sub" style="margin-top:5px">'+questProgressText()+'</div></div>');
+  if(q.kill){
+    var ke = enemyById(q.kill);
+    if(ke) box.insertAdjacentHTML('beforeend','<div class="r-sub" style="margin-top:5px;color:#ff9a9a">🩸 去哪找：'+habitatNames(ke)+' 的巢穴（走到巢穴格点「挑衅」即可主动开打，不必等随机遇敌）</div>');
+  }
+  if(q.item) box.insertAdjacentHTML('beforeend','<div class="r-sub" style="margin-top:5px;color:#9ecbff">📍 '+RESOURCES[q.item].name+'来源：'+sourceHint(q.item)+'</div>');
   var rw=[];
   if(q.reward.coin) rw.push('🪙'+q.reward.coin);
   for(var k in (q.reward.res||{})) rw.push(RESOURCES[k].icon+RESOURCES[k].name+'×'+q.reward.res[k]);
@@ -3311,7 +3698,7 @@ function talkNpc(){
 function renderCodex(){
   var box=$('codexList'); box.innerHTML='';
   var nR=Object.keys(G.codex.res).length, nE=Object.keys(G.codex.enemy).length;
-  $('codexLabel').textContent = '资源 '+nR+'/'+Object.keys(RESOURCES).length + ' · 生物 '+nE+'/'+ENEMIES.length;
+  $('codexLabel').textContent = '资源 '+nR+'/'+Object.keys(RESOURCES).length + ' · 生物 '+nE+'/'+ENEMIES.length + ' · 跨局 '+codexTotal();
   box.insertAdjacentHTML('beforeend','<div class="card-title">生物图鉴</div>');
   ENEMIES.forEach(function(e){
     var un = !!G.codex.enemy[e.id];
@@ -3319,7 +3706,7 @@ function renderCodex(){
     d.className='row'+(un?' done':' locked');
     d.innerHTML='<div class="r-name"><span>'+(un?e.emoji+' '+e.name:'❔ 未知生物')+'</span><span class="r-sub">'+(un?('HP '+e.hp+' · ATK '+e.atk):'未遭遇')+'</span></div>'+
       (un?'<div class="r-sub">'+e.desc+'</div>':'');
-    if(un) d.onclick=function(){ showInfo(e.emoji+' '+e.name, e.desc+'\n\n生命：'+e.hp+'　攻击：'+e.atk+'\n战利品：'+Object.keys(e.loot).map(function(k){return RESOURCES[k].name+'×'+e.loot[k];}).join('、')+'\n\n💡 '+e.tip); };
+    if(un) d.onclick=function(){ showInfo(e.emoji+' '+e.name, e.desc+'\n\n生命：'+e.hp+'　攻击：'+e.atk+'\n栖息：'+habitatNames(e)+'\n战利品：'+Object.keys(e.loot).map(function(k){return RESOURCES[k].name+'×'+e.loot[k];}).join('、')+'\n\n💡 '+e.tip); };
     box.appendChild(d);
   });
   box.insertAdjacentHTML('beforeend','<div class="card-title" style="margin-top:12px">资源图鉴</div>');
@@ -3327,7 +3714,7 @@ function renderCodex(){
   for(var k in RESOURCES){
     if(!G.codex.res[k]) continue;
     any=true;
-    box.insertAdjacentHTML('beforeend','<div class="row done" style="padding:6px 10px"><div class="r-name"><span>'+RESOURCES[k].icon+' '+RESOURCES[k].name+'</span><span class="r-sub">重量 '+RESOURCES[k].w+'</span></div></div>');
+    box.insertAdjacentHTML('beforeend','<div class="row done" style="padding:6px 10px"><div class="r-name"><span>'+RESOURCES[k].icon+' '+RESOURCES[k].name+'</span><span class="r-sub">重量 '+RESOURCES[k].w+'</span></div><div class="r-sub" style="margin-top:3px">'+sourceHint(k)+'</div></div>');
   }
   if(!any) box.insertAdjacentHTML('beforeend','<div class="empty">还没有采集过任何资源</div>');
 }
@@ -3335,7 +3722,7 @@ function renderCodex(){
 function renderAchv(){
   var box=$('achvList'); box.innerHTML='';
   var got = Object.keys(G.achv).length;
-  $('achvLabel').textContent = got+' / '+ACHIEVEMENTS.length;
+  $('achvLabel').textContent = got+' / '+ACHIEVEMENTS.length+' · 跨局 '+achvTotal();
   ACHIEVEMENTS.forEach(function(a){
     var on = !!G.achv[a.id];
     box.insertAdjacentHTML('beforeend','<div class="row '+(on?'done':'locked')+'"><div class="r-name"><span>'+(on?'🏆 ':'🔒 ')+a.name+'</span></div><div class="r-sub">'+a.desc+'</div></div>');
@@ -3435,15 +3822,31 @@ function switchTab(name){
 }
 
 /* ---------------- 开始 / 结束 ---------------- */
+function diffLocked(k){ return k==='hard' && !hardUnlocked(); }
+function renderMetaPanel(){
+  var box = $('metaPanel'); if(!box) return;
+  var m = metaGet();
+  var total = Object.keys(RESOURCES).length + ENEMIES.length;
+  box.innerHTML =
+    '<div class="db-title">📚 旅行者的行囊<small>跨局累计 · 不随单局结算清空</small></div>'+
+    '<div class="db-row"><span class="db-what">局数 <b>'+(m.runs||0)+'</b> · 通关 <b>'+(m.wins||0)+'</b> 次 · 最长存活 <b>'+(m.bestDays||0)+'</b> 天</span>'+
+      '<span class="db-rating">最快通关 '+(m.bestWinDay?('第 '+m.bestWinDay+' 天'):'—')+'</span></div>'+
+    '<div class="db-row"><span class="db-what">图鉴 <b>'+codexTotal()+'</b> / '+total+' · 成就 <b>'+achvTotal()+'</b> / '+ACHIEVEMENTS.length+
+      ' · 结局 <b>'+endingsTotal()+'</b> / 3</span><span class="db-rating">击杀 '+(m.totalKills||0)+'</span></div>'+
+    '<div class="db-row"><span class="db-what">'+(hardUnlocked()?'🔓 硬核难度已解锁':'🔒 硬核难度：成功逃离荒岛一次后解锁')+
+      ' · 真结局：交完 5 段任务并听完阿海的三段往事</span></div>';
+}
 function buildStartScreen(){
   var box=$('diffGrid'); box.innerHTML='';
   ['easy','normal','hard','daily'].forEach(function(k){
-    var d=DIFFICULTY[k];
+    var d=DIFFICULTY[k], lock = diffLocked(k);
     var el=document.createElement('div');
     el.className='diff-card'+(k==='normal'?' on':'');
     el.dataset.diff=k;
-    el.innerHTML='<b>'+d.icon+' '+d.name+'</b><span>'+d.desc+'</span>';
+    if(lock) el.style.opacity = '.5';
+    el.innerHTML='<b>'+d.icon+' '+d.name+(lock?' 🔒':'')+'</b><span>'+d.desc+'</span>';
     el.onclick=function(){
+      if(diffLocked(k)){ toast('先成功逃离荒岛一次，才能解锁硬核难度'); return; }
       document.querySelectorAll('.diff-card').forEach(function(c){ c.classList.remove('on'); });
       el.classList.add('on');
       window._diff = k;
@@ -3452,10 +3855,12 @@ function buildStartScreen(){
   });
   window._diff = 'normal';
   $('btnContinue').classList.toggle('hidden', !hasSave());
+  renderMetaPanel();
   renderDailyBoard();
 }
 function startNew(){
   var k = window._diff || 'normal';
+  if(diffLocked(k)){ toast('先成功逃离荒岛一次，才能解锁硬核难度'); return; }
   var seed = (k==='daily') ? todaySeed() : Math.floor(Math.random()*1e9);
   initGame(k, seed);
   enterGame();
@@ -3480,12 +3885,9 @@ function enterGame(){
     var d=document.createElement('div');
     d.className='log-line '+(l.t||'info'); d.textContent='[Day'+l.d+'] '+l.m; $('logBody').appendChild(d);
   });
-  if(window._tick) clearInterval(window._tick);
-  window._tick = setInterval(gameTick, BAL.time.tickMs);
   updateUI();
 }
 function quitToMenu(){
-  if(window._tick) clearInterval(window._tick);
   saveGame(true);
   $('hud').classList.add('hidden');
   $('gameLayout').classList.add('hidden');
@@ -3495,7 +3897,6 @@ function quitToMenu(){
 }
 function restart(){
   clearSave();
-  if(window._tick) clearInterval(window._tick);
   $('endingScreen').classList.add('hidden');
   $('hud').classList.add('hidden');
   $('gameLayout').classList.add('hidden');
@@ -3503,11 +3904,40 @@ function restart(){
   $('startScreen').classList.remove('hidden');
   buildStartScreen();
 }
+/* 结算评级：七项加权打分。设计文档一直宣称评级综合了「天数 / 资源利用率 / 战斗次数」，
+   而旧实现只看 G.day 一个阈值——零探索也能拿 S。这里把话说实。 */
+function rateRun(win){
+  var s = G.stats || {}, parts = [], total = 0;
+  function add(name, pts, max, txt){ pts = Math.max(0, Math.min(max, pts)); parts.push({n:name,p:pts,m:max,t:txt}); total += pts; }
+  add('存活', win ? 25 : G.day*0.7, 25, G.day+' 天');
+  add('逃离荒岛', win ? 25 : 0, 25, win ? '成功' : '未竟');
+  add('任务', (G.quest.idx||0)*2.4, 12, (G.quest.idx||0)+' / '+QUESTS.length);
+  add('探索', worldProgress()*1.0 + (G.zoneCleared||0)*1.6, 10, worldProgress()+' 区 / 走透 '+(G.zoneCleared||0)+' 区');
+  add('战斗', (s.kills||0)*0.8 + (G.eliteKills||0)*1.2, 10, (s.kills||0)+' 击杀（精英 '+(G.eliteKills||0)+'）');
+  var wasted = s.spoiled||0, gained = (s.gathered||0) + wasted;
+  var eff = gained>0 ? 1 - wasted/gained : 1;
+  add('资源利用率', (win?8:8*Math.min(1,G.day/30))*eff, 8, gained>0 ? (Math.round(eff*100)+'% · 腐坏 '+wasted) : '—');
+  add('线索与故事', Object.keys(G.chainDone||{}).length*1.7 + ((G.lore&&G.lore.ch3)?2:0), 5,
+      Object.keys(G.chainDone||{}).length+' 条链'+((G.lore&&G.lore.ch3)?' · 阿海的秘密':''));
+  var grade = win ? (total>=82?'S':total>=68?'A':total>=52?'B':'C')
+                  : (total>=58?'B':total>=38?'C':'D');
+  return { grade:grade, score:Math.round(total), parts:parts, eff:eff };
+}
+function ratingTable(R){
+  var rows = R.parts.map(function(p){
+    return '<div class="db-row"><span class="db-what">'+p.n+'　'+p.t+'</span>'+
+           '<span class="db-day">'+p.p.toFixed(1)+'</span><span class="db-rating">/ '+p.m+'</span></div>';
+  }).join('');
+  return '<div class="card-title" style="margin-top:12px">评分明细 <span class="sub">'+R.score+' / 100</span></div>'+
+         '<div style="font-size:11px">'+rows+'</div>';
+}
 function showEnding(win, reason){
   var got = Object.keys(G.achv||{}).length;
-  var rating = win ? (G.day<=20?'S':(G.day<=35?'A':(G.day<=55?'B':'C'))) : 'D';
+  var R = rateRun(win), rating = R.grade;
   var kind = 'alone';
   if(win && (G.quest.idx||0)>=5) kind = (G.lore && G.lore.ch3) ? 'truth' : 'friend';
+  var meta = metaMerge({win:win, day:G.day, kills:(G.stats.kills||0), elite:(G.eliteKills||0),
+                        rating:rating, kind:(win?kind:null)});
   var endTexts = {
     truth : '塔声划破夜空的那一刻，阿海在沙滩上朝着天空挥手——北边的航线上，真的有人回应了。\n\n你带走了这座岛的秘密，也带走了他等了二十年的希望。',
     friend: '直升机从天边出现。阿海替你把最后一只箱子搬上机舱：「替我看看外面的海。」\n\n你重重点头。这座岛留不住你，也不会再留下任何人。',
@@ -3532,7 +3962,10 @@ function showEnding(win, reason){
     '采集资源 '+(G.stats.gathered||0)+' 份<br>'+
     '探索步数 '+(G.stats.steps||0)+' 步<br>'+
     '解锁成就 '+got+' / '+ACHIEVEMENTS.length+'<br>'+
-    '难度：'+DIFFICULTY[G.diff].name+'</div>';
+    '难度：'+DIFFICULTY[G.diff].name+'<br>'+
+    '跨局累计：'+(meta.runs||0)+' 局 · 通关 '+(meta.wins||0)+' 次 · 最长存活 '+(meta.bestDays||0)+' 天<br>'+
+    '结局收集：'+endingsTotal()+' / 3　　图鉴：'+codexTotal()+'　　成就：'+achvTotal()+'</div>'+
+    ratingTable(R);
   $('fightScreen').classList.add('hidden');
   $('hud').classList.add('hidden');
   $('gameLayout').classList.add('hidden');
@@ -3576,7 +4009,6 @@ function init(){
     if(tileAt(nx,ny)) moveTo(nx,ny);
   });
   setupMapPan();
-  window._tick = null;
 }
 /* 全岛地图：拖拽平移 + 滚轮缩放 */
 function setupMapPan(){
